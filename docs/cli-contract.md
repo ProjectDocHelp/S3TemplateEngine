@@ -86,13 +86,14 @@ Pflichtverhalten:
 3. legt `app/part/` an
 4. legt je Variante ein Quellverzeichnis unter `app/` an
 5. legt `offline/content/`, `offline/schemas/` und `offline/tests/` an
-6. legt `.vscode/extensions.json` an
-7. darf gefahrlos mehrfach im selben Projekt ausgefuehrt werden
-8. ergaenzt eine bereits vorhandene `package.json` um fehlende S3TE-Standardfelder und -Skripte
-9. ergaenzt eine bereits vorhandene `s3te.config.json` um fehlende Scaffold-Defaults
-10. aktualisiert die von S3TE erzeugte Schema-Datei auf die mitgelieferte aktuelle Version
-11. normalisiert `--base-url` auf einen Hostnamen, auch wenn eine volle URL uebergeben wird
-12. belaesst andere bereits vorhandene Scaffold-Dateien unveraendert, sofern kein `--force` gesetzt ist
+6. legt `.github/workflows/s3te-sync.yml` als GitHub-Workflow fuer Code-Bucket-Sync an
+7. legt `.vscode/extensions.json` an
+8. darf gefahrlos mehrfach im selben Projekt ausgefuehrt werden
+9. ergaenzt eine bereits vorhandene `package.json` um fehlende S3TE-Standardfelder und -Skripte
+10. ergaenzt eine bereits vorhandene `s3te.config.json` um fehlende Scaffold-Defaults
+11. aktualisiert die von S3TE erzeugte Schema-Datei auf die mitgelieferte aktuelle Version
+12. normalisiert `--base-url` auf einen Hostnamen, auch wenn eine volle URL uebergeben wird
+13. belaesst andere bereits vorhandene Scaffold-Dateien unveraendert, sofern kein `--force` gesetzt ist
 
 Mindestens erzeugte Struktur:
 
@@ -100,6 +101,9 @@ Mindestens erzeugte Struktur:
 project/
   package.json
   s3te.config.json
+  .github/
+    workflows/
+      s3te-sync.yml
   app/
     part/
     website/
@@ -237,6 +241,37 @@ JSON-Report:
 CliReport<PackageReport>
 ```
 
+## `s3te sync`
+
+Zweck:
+
+- aktuelle Projektquellen in die Code-Buckets einer bestehenden Umgebung synchronisieren
+
+Aufruf:
+
+```bash
+s3te sync --env dev
+s3te sync --env prod
+```
+
+Optionen:
+
+- `--env <name>` Pflicht
+- `--out-dir <path>` optional
+
+Pflichtverhalten:
+
+1. laedt und validiert die Projektkonfiguration
+2. bereitet die zu synchronisierenden Quellen im S3TE-Code-Bucket-Layout vor
+3. synchronisiert `sourceDir` und `partDir` jeder Variante in den jeweiligen Code-Bucket
+4. verwendet `aws s3 sync --delete`, damit geloeschte Quellen auch als Remove-Events ankommen
+
+JSON-Report:
+
+```ts
+CliReport<SyncReport>
+```
+
 ## `s3te deploy`
 
 Zweck:
@@ -260,12 +295,12 @@ Optionen:
 
 Pflichtverhalten:
 
-1. fuehrt `validate` aus
+1. laedt und validiert die Projektkonfiguration
 2. fuehrt bei Bedarf `package` aus
 3. erstellt fuer den eigentlichen Deploy-Lauf einen temporaeren CloudFormation-Stack fuer fluechtige Packaging-Ressourcen
 4. deployed genau einen persistenten CloudFormation-Stack fuer die Umgebung
 5. aktiviert alle Features, die in der aufgeloesten Projektkonfiguration eingeschaltet sind
-6. synchronisiert Projektquellen in alle konfigurierten Code-Buckets
+6. synchronisiert Projektquellen mit demselben Source-Sync-Pfad wie `s3te sync` in alle konfigurierten Code-Buckets
 7. aktualisiert das Runtime-Manifest ueber einen zweiten Stack-Update im Environment-Stack
 8. entfernt den temporaeren Packaging-Stack am Ende des echten Deploy-Laufs wieder
 

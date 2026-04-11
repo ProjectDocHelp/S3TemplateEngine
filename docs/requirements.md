@@ -92,6 +92,7 @@ S3TemplateEngine (S3TE) bleibt eine ultra-leichte, serverless Engine fuer statis
 - CloudFront-Invalidierungen werden entkoppelt und gebuendelt.
 - CloudFormation bleibt fuer die erste Rewrite-Generation ein unterstuetztes Deployment-Ziel.
 - `s3te deploy --env <name>` rollt die Infrastruktur aus und synchronisiert die aktuellen Projektquellen in die konfigurierten Code-Buckets.
+- `s3te sync --env <name>` synchronisiert aktuelle Projektquellen in eine bereits vorhandene Umgebung, ohne CloudFormation erneut auszurollen.
 - V1 verwendet genau einen persistenten CloudFormation-Stack pro Umgebung und fuer echte Deploy-Laeufe zusaetzlich genau einen temporaeren Packaging-Stack.
 
 ### FR-9 Lokales Entwickeln und Testen
@@ -111,6 +112,7 @@ Die CLI stellt mindestens diese Kommandos bereit:
 - `s3te render`
 - `s3te test`
 - `s3te package`
+- `s3te sync`
 - `s3te deploy`
 - `s3te doctor`
 - `s3te migrate`

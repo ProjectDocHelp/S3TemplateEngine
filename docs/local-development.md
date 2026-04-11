@@ -96,6 +96,9 @@ erzeugt mindestens diese Struktur:
 project/
   package.json
   s3te.config.json
+  .github/
+    workflows/
+      s3te-sync.yml
   app/
     part/
     website/
@@ -106,6 +109,8 @@ project/
   .vscode/
     extensions.json
 ```
+
+Die scaffoldete GitHub-Action ist der Referenzpfad fuer Teams, die Quellaenderungen nicht lokal mit `s3te sync`, sondern ueber Pushes in ein Repository in die Code-Buckets publizieren wollen.
 
 Optional kann `s3te init` zusaetzlich erzeugen:
 
@@ -137,8 +142,10 @@ flowchart TD
   C --> D[npx s3te validate]
   D --> E[npx s3te render --env dev]
   E --> F[npx s3te test]
-  F --> G[npx s3te package]
-  G --> H[npx s3te deploy --env dev]
+  F --> G[npx s3te sync --env dev]
+  G --> H{Stack oder Config geaendert?}
+  H -->|ja| I[npx s3te deploy --env dev]
+  H -->|nein| J[In AWS reagiert die laufende S3TE]
 ```
 
 ## CLI-Referenz fuer lokale Entwicklung
@@ -172,11 +179,18 @@ flowchart TD
 
 - erstellt deterministische Deployment-Artefakte
 
+### `s3te sync`
+
+- synchronisiert aktuelle Projektquellen in die Code-Buckets einer bestehenden AWS-Umgebung
+- verwendet `aws s3 sync --delete`, damit geloeschte Quellen Remove-Events ausloesen
+- ist der normale Publish-Schritt fuer Template-, Part- und Asset-Aenderungen
+
 ### `s3te deploy`
 
 - deployt in die angegebene AWS-Umgebung
 - verwendet die AWS Credential Chain oder den uebergebenen AWS-Profile-Kontext
-- synchronisiert die aktuellen Projektquellen in die konfigurierten Code-Buckets
+- installiert oder aktualisiert die AWS-Infrastruktur
+- synchronisiert anschliessend ebenfalls die aktuellen Projektquellen in die konfigurierten Code-Buckets
 
 ### `s3te doctor`
 

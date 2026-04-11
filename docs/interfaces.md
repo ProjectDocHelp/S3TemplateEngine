@@ -492,6 +492,12 @@ export interface PackageReport {
   cloudFormationTemplate: string;
 }
 
+export interface SyncReport {
+  syncRoot: string;
+  syncDirectories: Record<string, string>;
+  syncedCodeBuckets: string[];
+}
+
 export interface DeployReport {
   stackName: string;
   packageDir: string;

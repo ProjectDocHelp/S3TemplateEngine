@@ -15,7 +15,8 @@ import {
   deployAwsProject,
   ensureAwsCliAvailable,
   ensureAwsCredentials,
-  packageAwsProject
+  packageAwsProject,
+  syncAwsProject
 } from "../../aws-adapter/src/index.mjs";
 
 import {
@@ -231,6 +232,52 @@ function schemaTemplate() {
       }
     }
   };
+}
+
+function githubSyncWorkflowTemplate() {
+  return `name: S3TE Sync
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/s3te-sync.yml"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: \${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: \${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+      - name: Validate project
+        run: npx s3te validate
+      - name: Sync project sources to the S3TE code bucket
+        run: npx s3te sync --env dev
+`;
 }
 
 async function fileExists(targetPath) {
@@ -482,6 +529,7 @@ export async function scaffoldProject(projectDir, options = {}) {
   await ensureDirectory(path.join(projectDir, "offline", "tests"));
   await ensureDirectory(path.join(projectDir, "offline", "content"));
   await ensureDirectory(path.join(projectDir, "offline", "schemas"));
+  await ensureDirectory(path.join(projectDir, ".github", "workflows"));
   await ensureDirectory(path.join(projectDir, ".vscode"));
 
   const projectPackageJson = {
@@ -491,6 +539,7 @@ export async function scaffoldProject(projectDir, options = {}) {
     scripts: {
       validate: "s3te validate",
       render: "s3te render --env dev",
+      sync: "s3te sync --env dev",
       test: "s3te test"
     }
   };
@@ -530,6 +579,7 @@ export async function scaffoldProject(projectDir, options = {}) {
   await writeProjectPackageJson(path.join(projectDir, "package.json"), projectPackageJson, scaffoldOptions, force);
   await writeProjectConfigJson(path.join(projectDir, "s3te.config.json"), config, scaffoldOptions, force);
   await writeProjectFile(path.join(projectDir, "offline", "schemas", "s3te.config.schema.json"), JSON.stringify(schemaTemplate(), null, 2) + "\n", force, true);
+  await writeProjectFile(path.join(projectDir, ".github", "workflows", "s3te-sync.yml"), githubSyncWorkflowTemplate(), force);
   await writeProjectFile(path.join(projectDir, "app", "part", "head.part"), "<meta charset='utf-8'>\n<title>My S3TE Site</title>\n", force);
   await writeProjectFile(path.join(projectDir, "app", variant, "index.html"), "<!doctype html>\n<html lang=\"<lang>2</lang>\">\n  <head>\n    <part>head.part</part>\n  </head>\n  <body>\n    <h1>Hello from S3TemplateEngine</h1>\n  </body>\n</html>\n", force);
   await writeProjectFile(path.join(projectDir, "offline", "content", `${language}.json`), "[]\n", force);
@@ -670,6 +720,17 @@ export async function deployProject(projectDir, config, options = {}) {
     profile: options.profile,
     plan: Boolean(options.plan),
     noSync: Boolean(options.noSync),
+    stdio: options.stdio ?? "pipe"
+  });
+}
+
+export async function syncProject(projectDir, config, options = {}) {
+  return syncAwsProject({
+    projectDir,
+    config,
+    environment: options.environment,
+    outDir: options.outDir,
+    profile: options.profile,
     stdio: options.stdio ?? "pipe"
   });
 }

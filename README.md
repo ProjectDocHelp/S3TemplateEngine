@@ -59,7 +59,9 @@ The website bucket contains the finished result that visitors actually receive t
 <details>
   <summary>What happens when I deploy?</summary>
 
-`s3te deploy` validates the project, packages the AWS runtime, creates or updates one persistent CloudFormation environment stack, creates one temporary CloudFormation deploy stack for packaging artifacts, synchronizes your current source files into the code bucket, and removes the temporary stack again after the real deploy run.
+`s3te deploy` loads the validated project configuration, packages the AWS runtime, creates or updates one persistent CloudFormation environment stack, creates one temporary CloudFormation deploy stack for packaging artifacts, synchronizes your current source files into the code bucket, and removes the temporary stack again after the real deploy run.
+
+That source sync is not limited to Lambda code. It includes your `.html`, `.part`, CSS, JavaScript, images and other project files so the running AWS stack can react to source changes inside the code bucket.
 
 The persistent environment stack contains the long-lived AWS resources such as buckets, Lambda functions, DynamoDB tables, CloudFront distributions and the runtime manifest parameter. The temporary deploy stack exists only so CloudFormation can consume the packaged Lambda artifacts cleanly.
 
@@ -171,6 +173,9 @@ The default scaffold creates:
 mywebsite/
   package.json
   s3te.config.json
+  .github/
+    workflows/
+      s3te-sync.yml
   app/
     part/
       head.part
@@ -186,6 +191,8 @@ mywebsite/
   .vscode/
     extensions.json
 ```
+
+The generated `.github/workflows/s3te-sync.yml` is the default CI path for GitHub-based source publishing into the S3TE code bucket. It is scaffolded once and then left alone on later `s3te init` runs unless you use `--force`.
 
 </details>
 
@@ -238,13 +245,15 @@ npx s3te deploy --env dev
 
 `deploy` creates or updates the persistent environment stack, uses a temporary deploy stack for packaged Lambda artifacts, synchronizes the source project into the code bucket, and removes the temporary stack again when the deploy finishes.
 
+After the first successful deploy, use `s3te sync --env dev` for regular template, partial, asset and source updates when the infrastructure itself did not change.
+
 If you left `route53HostedZoneId` out of the config, the last DNS step stays manual: point your domain at the created CloudFront distribution after deploy.
 
 </details>
 
 ## Usage
 
-Once the project is installed, your everyday loop is deliberately small: edit templates, validate, render locally, then deploy.
+Once the project is installed, your everyday loop splits into two paths: deploy when infrastructure changes, sync when only project sources changed.
 
 ### Daily Workflow
 
@@ -255,14 +264,23 @@ Once the project is installed, your everyday loop is deliberately small: edit te
 2. If you use content-driven tags without Webiny, edit `offline/content/en.json` or `offline/content/items.json`.
 3. Validate and render locally.
 4. Run your tests.
-5. Deploy when the result looks right.
+5. Use `deploy` for the first installation or after infrastructure/config/runtime changes.
+6. Use `sync` for day-to-day source publishing into the code bucket.
 
 ```bash
 npx s3te validate
 npx s3te render --env dev
 npx s3te test
+npx s3te sync --env dev
+```
+
+Use a full deploy only when needed:
+
+```bash
 npx s3te deploy --env dev
 ```
+
+Once Webiny is installed and the stack is deployed with Webiny enabled, CMS content changes are picked up in AWS through the DynamoDB stream integration. Those content changes do not require another `sync` or `deploy`.
 
 </details>
 
@@ -278,6 +296,7 @@ npx s3te deploy --env dev
 | `s3te render --env <name>` | Renders locally into `offline/S3TELocal/preview/<env>/...`. |
 | `s3te test` | Runs the project tests from `offline/tests/`. |
 | `s3te package --env <name>` | Builds the AWS deployment artifacts without deploying them yet. |
+| `s3te sync --env <name>` | Uploads current project sources into the configured code buckets. |
 | `s3te doctor --env <name>` | Checks local machine and AWS access before deploy. |
 | `s3te deploy --env <name>` | Deploys or updates the AWS environment and syncs source files. |
 | `s3te migrate` | Updates older project configs and can retrofit Webiny into an existing S3TE project. |
@@ -394,7 +413,100 @@ npx s3te doctor --env prod
 npx s3te deploy --env prod
 ```
 
-That deploy updates the existing environment stack and adds the Webiny mirror resources to it. You do not need a fresh S3TE installation.
+That deploy updates the existing environment stack and adds the Webiny mirror resources to it. You do not need a fresh S3TE installation. After that, Webiny content changes flow through the deployed AWS resources automatically; only template or asset changes still need `s3te sync --env <name>`.
+
+</details>
+
+<details>
+  <summary>GitHub Actions source publishing</summary>
+
+If your team works through GitHub instead of running `s3te sync` locally, the scaffold already includes `.github/workflows/s3te-sync.yml`.
+
+That workflow is meant for source publishing only:
+
+- it validates the project
+- it uploads `app/...` and `part/...` into the S3TE code bucket
+- the resulting S3 events trigger the deployed Lambda pipeline in AWS
+
+Use a full `deploy` only when the infrastructure, environment config, or runtime package changes.
+
+Before the workflow can run, do this once:
+
+1. Run the first real `npx s3te deploy --env <name>` so the code bucket already exists.
+2. In AWS IAM, create an access key for a CI user that may sync only the S3TE code bucket for that environment.
+3. In GitHub open `Settings -> Secrets and variables -> Actions -> Secrets`.
+4. Add these repository secrets:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+5. Open `.github/workflows/s3te-sync.yml` and adjust:
+   - the branch under `on.push.branches`
+   - `aws-region`
+   - `npx s3te sync --env dev` to your target environment such as `prod` or `test`
+
+Minimal IAM policy example for one code bucket:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::dev-website-code-mywebsite"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": ["arn:aws:s3:::dev-website-code-mywebsite/*"]
+    }
+  ]
+}
+```
+
+For non-production environments or additional variants, use the derived code bucket names from your config, for example `test-website-code-mywebsite` or `app-code-mywebsite`.
+
+The scaffolded workflow looks like this:
+
+```yaml
+name: S3TE Sync
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "app/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/s3te-sync.yml"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+      - run: npx s3te validate
+      - run: npx s3te sync --env dev
+```
 
 </details>
 

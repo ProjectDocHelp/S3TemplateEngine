@@ -10,6 +10,7 @@ import { ensureAwsCliAvailable, ensureAwsCredentials, runAwsCli } from "./aws-cl
 import { resolveRequestedFeatures } from "./features.mjs";
 import { buildAwsRuntimeManifest, extractStackOutputsMap } from "./manifest.mjs";
 import { packageAwsProject } from "./package.mjs";
+import { syncPreparedSources } from "./sync.mjs";
 import { buildTemporaryDeployStackTemplate } from "./template.mjs";
 
 function normalizeRelative(projectDir, targetPath) {
@@ -365,20 +366,15 @@ export async function deployAwsProject({
       stdio
     });
 
-    const syncedCodeBuckets = [];
-    if (!noSync) {
-      for (const [variantName, variantConfig] of Object.entries(runtimeConfig.variants)) {
-        const syncDir = path.join(projectDir, packaged.manifest.syncDirectories[variantName]);
-        await runAwsCli(["s3", "sync", syncDir, `s3://${variantConfig.codeBucket}`], {
-          region: runtimeConfig.awsRegion,
+    const syncedCodeBuckets = noSync
+      ? []
+      : (await syncPreparedSources({
+          projectDir,
+          runtimeConfig,
+          syncDirectories: packaged.manifest.syncDirectories,
           profile,
-          cwd: projectDir,
-          stdio,
-          errorCode: "ADAPTER_ERROR"
-        });
-        syncedCodeBuckets.push(variantConfig.codeBucket);
-      }
-    }
+          stdio
+        })).syncedCodeBuckets;
 
     const distributions = [];
     for (const [variantName, variantConfig] of Object.entries(runtimeConfig.variants)) {

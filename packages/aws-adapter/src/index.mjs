@@ -5,3 +5,4 @@ export { ensureAwsCliAvailable, ensureAwsCredentials, runAwsCli } from "./aws-cl
 export { getConfiguredFeatures, resolveRequestedFeatures } from "./features.mjs";
 export { packageAwsProject } from "./package.mjs";
 export { deployAwsProject } from "./deploy.mjs";
+export { stageProjectSources, syncPreparedSources, syncAwsProject } from "./sync.mjs";

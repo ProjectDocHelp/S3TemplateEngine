@@ -11,6 +11,7 @@ import {
   renderProject,
   runProjectTests,
   scaffoldProject,
+  syncProject,
   validateProject
 } from "../src/project.mjs";
 
@@ -82,6 +83,7 @@ function printHelp() {
     "  render\n" +
     "  test\n" +
     "  package\n" +
+    "  sync\n" +
     "  deploy\n" +
     "  doctor\n" +
     "  migrate\n"
@@ -278,6 +280,37 @@ async function main() {
     }
 
     process.stdout.write(`Packaged deployment artifacts into ${report.packageDir}\n`);
+    return;
+  }
+
+  if (command === "sync") {
+    const loaded = await loadConfigForCommand(cwd, options.config);
+    if (!loaded.ok) {
+      if (wantsJson) {
+        printJson("sync", false, loaded.warnings, loaded.errors, startedAt);
+      }
+      process.exitCode = 2;
+      return;
+    }
+    if (!options.env) {
+      process.stderr.write("sync requires --env <name>\n");
+      process.exitCode = 1;
+      return;
+    }
+
+    const report = await syncProject(cwd, loaded.config, {
+      environment: asArray(options.env)[0],
+      outDir: options["out-dir"],
+      profile: options.profile,
+      stdio: wantsJson ? "pipe" : "inherit"
+    });
+
+    if (wantsJson) {
+      printJson("sync", true, [], [], startedAt, report);
+      return;
+    }
+
+    process.stdout.write(`Synced project sources to ${report.syncedCodeBuckets.length} code bucket(s)\n`);
     return;
   }
 

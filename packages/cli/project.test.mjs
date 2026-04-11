@@ -118,6 +118,7 @@ test("scaffoldProject merges an existing npm-generated package.json", async (con
   assert.deepEqual(packageJson.scripts, {
     validate: "s3te validate",
     render: "s3te render --env dev",
+    sync: "s3te sync --env dev",
     test: "s3te test"
   });
 });
@@ -149,7 +150,8 @@ test("scaffoldProject preserves existing package.json fields and script collisio
     test: "vitest",
     lint: "eslint .",
     validate: "s3te validate",
-    render: "s3te render --env dev"
+    render: "s3te render --env dev",
+    sync: "s3te sync --env dev"
   });
 });
 
@@ -172,6 +174,25 @@ test("scaffoldProject writes the canonical schema file", async (context) => {
   assert.equal(generatedSchema.properties.aws.type, "object");
 });
 
+test("scaffoldProject writes a default GitHub sync workflow", async (context) => {
+  const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "s3te-init-"));
+  context.after(async () => {
+    await fs.rm(projectDir, { recursive: true, force: true });
+  });
+
+  await scaffoldProject(projectDir, {
+    projectName: "sop",
+    baseUrl: "example.com"
+  });
+
+  const workflowPath = path.join(projectDir, ".github", "workflows", "s3te-sync.yml");
+  const workflow = await fs.readFile(workflowPath, "utf8");
+
+  assert.match(workflow, /name: S3TE Sync/);
+  assert.match(workflow, /aws-actions\/configure-aws-credentials@v4/);
+  assert.match(workflow, /run: npx s3te sync --env dev/);
+});
+
 test("scaffoldProject can be re-run to refresh schema and explicit scaffold values without overwriting user files", async (context) => {
   const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "s3te-init-"));
   context.after(async () => {
@@ -186,6 +207,7 @@ test("scaffoldProject can be re-run to refresh schema and explicit scaffold valu
   const configPath = path.join(projectDir, "s3te.config.json");
   const packageJsonPath = path.join(projectDir, "package.json");
   const schemaPath = path.join(projectDir, "offline", "schemas", "s3te.config.schema.json");
+  const workflowPath = path.join(projectDir, ".github", "workflows", "s3te-sync.yml");
   const headPartPath = path.join(projectDir, "app", "part", "head.part");
   const contentPath = path.join(projectDir, "offline", "content", "en.json");
 
@@ -200,6 +222,7 @@ test("scaffoldProject can be re-run to refresh schema and explicit scaffold valu
     additionalProperties: false,
     properties: {}
   }, null, 2) + "\n");
+  await fs.writeFile(workflowPath, "name: Custom Sync\n");
   await fs.writeFile(headPartPath, "<title>Custom Head</title>\n");
   await fs.rm(contentPath, { force: true });
 
@@ -223,6 +246,7 @@ test("scaffoldProject can be re-run to refresh schema and explicit scaffold valu
   assert.equal(packageJson.name, "sop-fixed");
   assert.equal(refreshedSchema.properties.rendering.type, "object");
   assert.equal(refreshedSchema.properties.aws.type, "object");
+  assert.equal(await fs.readFile(workflowPath, "utf8"), "name: Custom Sync\n");
   assert.equal(await fs.readFile(headPartPath, "utf8"), "<title>Custom Head</title>\n");
   assert.equal(await fs.readFile(contentPath, "utf8"), "[]\n");
 });

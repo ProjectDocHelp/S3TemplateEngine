@@ -430,18 +430,34 @@ That workflow is meant for source publishing only:
 
 Use a full `deploy` only when the infrastructure, environment config, or runtime package changes.
 
-Before the workflow can run, do this once:
+GitHub preparation checklist:
 
-1. Run the first real `npx s3te deploy --env <name>` so the code bucket already exists.
-2. In AWS IAM, create an access key for a CI user that may sync only the S3TE code bucket for that environment.
-3. In GitHub open `Settings -> Secrets and variables -> Actions -> Secrets`.
-4. Add these repository secrets:
+1. Push the project to GitHub together with `.github/workflows/s3te-sync.yml`.
+2. Make sure GitHub Actions are allowed for the repository or organization.
+3. Run the first real `npx s3te deploy --env <name>` so the code bucket already exists.
+4. In AWS IAM, create an access key for a CI user that may sync only the S3TE code bucket for that environment.
+5. In GitHub open `Settings -> Secrets and variables -> Actions -> Secrets`.
+6. Add these repository secrets:
    - `AWS_ACCESS_KEY_ID`
    - `AWS_SECRET_ACCESS_KEY`
-5. Open `.github/workflows/s3te-sync.yml` and adjust:
+7. Open `.github/workflows/s3te-sync.yml` and adjust:
    - the branch under `on.push.branches`
    - `aws-region`
    - `npx s3te sync --env dev` to your target environment such as `prod` or `test`
+
+No GitHub variables are required by the scaffolded workflow. The code bucket name is resolved by S3TE from `s3te.config.json`, so you do not have to store bucket names in GitHub.
+
+For projects with multiple environments such as `test` and `prod`, the simplest setup is usually one workflow file per target environment, for example:
+
+- `.github/workflows/s3te-sync-test.yml` with `npx s3te sync --env test`
+- `.github/workflows/s3te-sync-prod.yml` with `npx s3te sync --env prod`
+
+First verification in GitHub:
+
+1. Open the `Actions` tab in the repository.
+2. Select `S3TE Sync`.
+3. Start it once manually with `Run workflow`.
+4. Check that the run reaches the `Configure AWS credentials`, `Validate project`, and `Sync project sources to the S3TE code bucket` steps without error.
 
 Minimal IAM policy example for one code bucket:
 

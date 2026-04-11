@@ -32,6 +32,21 @@ function normalizePath(value) {
   return String(value).replace(/\\/g, "/");
 }
 
+function unknownEnvironmentMessage(config, environmentName) {
+  const knownEnvironments = Object.keys(config?.environments ?? {});
+  return `Unknown environment ${environmentName}. Known environments: ${knownEnvironments.length > 0 ? knownEnvironments.join(", ") : "(none)"}.`;
+}
+
+function assertKnownEnvironment(config, environmentName) {
+  if (!environmentName) {
+    return;
+  }
+
+  if (!config?.environments?.[environmentName]) {
+    throw new S3teError("CONFIG_CONFLICT_ERROR", unknownEnvironmentMessage(config, environmentName));
+  }
+}
+
 function normalizeBaseUrl(value) {
   const trimmed = String(value).trim();
   if (!trimmed) {
@@ -235,7 +250,11 @@ function schemaTemplate() {
 }
 
 function githubSyncWorkflowTemplate() {
-  return `name: S3TE Sync
+  return `# Before first use:
+# 1. Run "npx s3te deploy --env dev" once so the S3TE code bucket already exists.
+# 2. Add GitHub Actions secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+# 3. Adjust branch, aws-region, and the target environment below.
+name: S3TE Sync
 
 on:
   workflow_dispatch:
@@ -459,6 +478,18 @@ export async function loadResolvedConfig(projectDir, configPath) {
 }
 
 export async function validateProject(projectDir, config, options = {}) {
+  if (options.environment && !config?.environments?.[options.environment]) {
+    return {
+      ok: false,
+      errors: [{
+        code: "CONFIG_CONFLICT_ERROR",
+        message: unknownEnvironmentMessage(config, options.environment)
+      }],
+      warnings: [],
+      checkedTemplates: []
+    };
+  }
+
   const templateRepository = new FileSystemTemplateRepository(projectDir, config);
   const contentRepository = await loadLocalContent(projectDir, config);
   const warnings = [];
@@ -595,6 +626,7 @@ export async function scaffoldProject(projectDir, options = {}) {
 }
 
 export async function renderProject(projectDir, config, options = {}) {
+  assertKnownEnvironment(config, options.environment);
   const templateRepository = new FileSystemTemplateRepository(projectDir, config);
   const contentRepository = await loadLocalContent(projectDir, config);
   const outputRoot = path.join(projectDir, options.outputDir ?? config.rendering.outputDir);
@@ -700,6 +732,7 @@ export async function runProjectTests(projectDir) {
 }
 
 export async function packageProject(projectDir, config, options = {}) {
+  assertKnownEnvironment(config, options.environment);
   return packageAwsProject({
     projectDir,
     config,
@@ -711,6 +744,7 @@ export async function packageProject(projectDir, config, options = {}) {
 }
 
 export async function deployProject(projectDir, config, options = {}) {
+  assertKnownEnvironment(config, options.environment);
   return deployAwsProject({
     projectDir,
     config,
@@ -725,6 +759,7 @@ export async function deployProject(projectDir, config, options = {}) {
 }
 
 export async function syncProject(projectDir, config, options = {}) {
+  assertKnownEnvironment(config, options.environment);
   return syncAwsProject({
     projectDir,
     config,
@@ -767,6 +802,15 @@ export async function doctorProject(projectDir, configPath, options = {}) {
   }
 
   if (options.environment && options.config) {
+    if (!options.config.environments?.[options.environment]) {
+      checks.push({
+        name: "environment",
+        ok: false,
+        message: unknownEnvironmentMessage(options.config, options.environment)
+      });
+      return checks;
+    }
+
     try {
       await ensureAwsCredentials({
         region: options.config.environments[options.environment].awsRegion,

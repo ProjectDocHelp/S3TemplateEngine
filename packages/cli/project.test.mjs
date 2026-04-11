@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { migrateProject, scaffoldProject } from "./src/project.mjs";
+import { doctorProject, migrateProject, scaffoldProject, validateProject } from "./src/project.mjs";
 
 test("migrateProject can retrofit webiny onto an existing S3TE config", async () => {
   const migration = await migrateProject("s3te.config.json", {
@@ -89,6 +89,44 @@ test("migrateProject can configure webiny per environment", async () => {
   assert.equal(migration.config.integrations.webiny.environments.test.sourceTableName, "webiny-test");
   assert.equal(migration.config.integrations.webiny.environments.test.tenant, "preview");
   assert.deepEqual(migration.config.integrations.webiny.environments.test.relevantModels, ["staticContent", "staticCodeContent", "article"]);
+});
+
+test("validateProject rejects an unknown environment with a clear error", async () => {
+  const validation = await validateProject(process.cwd(), {
+    environments: {
+      test: {},
+      prod: {}
+    },
+    variants: {}
+  }, {
+    environment: "dev"
+  });
+
+  assert.equal(validation.ok, false);
+  assert.deepEqual(validation.errors, [{
+    code: "CONFIG_CONFLICT_ERROR",
+    message: "Unknown environment dev. Known environments: test, prod."
+  }]);
+});
+
+test("doctorProject reports an unknown environment instead of crashing", async () => {
+  const checks = await doctorProject(process.cwd(), path.join(process.cwd(), "missing-config.json"), {
+    environment: "dev",
+    config: {
+      environments: {
+        test: {
+          awsRegion: "eu-west-1"
+        },
+        prod: {
+          awsRegion: "eu-west-1"
+        }
+      }
+    }
+  });
+
+  assert.equal(checks.at(-1)?.name, "environment");
+  assert.equal(checks.at(-1)?.ok, false);
+  assert.equal(checks.at(-1)?.message, "Unknown environment dev. Known environments: test, prod.");
 });
 
 test("scaffoldProject merges an existing npm-generated package.json", async (context) => {

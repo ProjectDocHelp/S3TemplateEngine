@@ -87,7 +87,8 @@ Pflichtverhalten:
 4. legt je Variante ein Quellverzeichnis unter `app/` an
 5. legt `offline/content/`, `offline/schemas/` und `offline/tests/` an
 6. legt `.vscode/extensions.json` an
-7. ueberschreibt bestehende Dateien nur mit `--force`
+7. ergaenzt eine bereits vorhandene `package.json` um fehlende S3TE-Standardfelder und -Skripte
+8. ueberschreibt andere bestehende Dateien nur mit `--force`
 
 Mindestens erzeugte Struktur:
 

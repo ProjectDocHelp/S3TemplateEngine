@@ -88,6 +88,8 @@ Der Befehl:
 s3te init
 ```
 
+Wenn `npm install` bereits eine `package.json` erzeugt hat, ergaenzt `s3te init` sie um fehlende S3TE-Defaults, statt sie pauschal abzulehnen.
+
 erzeugt mindestens diese Struktur:
 
 ```text

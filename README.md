@@ -136,9 +136,25 @@ cd mywebsite
 </details>
 
 <details>
-  <summary>2. Scaffold the project once</summary>
+  <summary>2. Install S3TE locally in the project</summary>
 
-If `@projectdochelp/s3te` is already published on npm, scaffold the project once with a temporary `npx` run:
+```bash
+npm install --save-dev @projectdochelp/s3te
+```
+</details>
+
+<details>
+  <summary>3. Scaffold the project</summary>
+
+With the local package installed, initialize the project like this:
+
+```bash
+npx s3te init --project-name mywebsite --base-url example.com
+```
+
+If `npm install` already created a minimal `package.json`, `s3te init` extends it with the missing S3TE defaults and scripts instead of failing.
+
+If you want a one-shot scaffold without installing first, and `@projectdochelp/s3te` is already published on npm, this also works:
 
 ```bash
 npx --package @projectdochelp/s3te s3te init --project-name mywebsite --base-url example.com
@@ -155,7 +171,7 @@ node packages/cli/bin/s3te.mjs init --dir ./mywebsite --project-name mywebsite -
 </details>
 
 <details>
-  <summary>3. What the scaffold creates</summary>
+  <summary>4. What the scaffold creates</summary>
 
 The default scaffold creates:
 
@@ -178,20 +194,6 @@ mywebsite/
   .vscode/
     extensions.json
 ```
-
-</details>
-
-<details>
-  <summary>4. Install S3TE locally in the project</summary>
-
-```bash
-npm install --save-dev @projectdochelp/s3te
-npx s3te --help
-```
-
-This is the recommended everyday setup. From this point on, you run the project-local version with `npx s3te ...`.
-
-If you want to use the built-in test helpers in your own project tests, import them from the same package via `@projectdochelp/s3te/testkit`.
 
 </details>
 

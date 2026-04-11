@@ -125,11 +125,66 @@ async function fileExists(targetPath) {
   }
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 async function writeProjectFile(targetPath, body, force = false) {
   if (!force && await fileExists(targetPath)) {
     throw new Error(`Refusing to overwrite existing file: ${targetPath}`);
   }
   await writeTextFile(targetPath, body);
+}
+
+function mergeProjectPackageJson(existingPackageJson, projectPackageJson) {
+  if (!isPlainObject(existingPackageJson)) {
+    throw new Error("Existing package.json must contain a JSON object.");
+  }
+
+  if (existingPackageJson.scripts !== undefined && !isPlainObject(existingPackageJson.scripts)) {
+    throw new Error("Existing package.json must use an object for scripts.");
+  }
+
+  const mergedPackageJson = { ...existingPackageJson };
+  for (const [key, value] of Object.entries(projectPackageJson)) {
+    if (key === "scripts") {
+      continue;
+    }
+
+    if (mergedPackageJson[key] === undefined) {
+      mergedPackageJson[key] = value;
+    }
+  }
+
+  const mergedScripts = { ...(mergedPackageJson.scripts ?? {}) };
+  for (const [name, command] of Object.entries(projectPackageJson.scripts ?? {})) {
+    if (mergedScripts[name] === undefined) {
+      mergedScripts[name] = command;
+    }
+  }
+
+  if (Object.keys(mergedScripts).length > 0) {
+    mergedPackageJson.scripts = mergedScripts;
+  }
+
+  return mergedPackageJson;
+}
+
+async function writeProjectPackageJson(targetPath, projectPackageJson, force = false) {
+  if (force || !await fileExists(targetPath)) {
+    await writeTextFile(targetPath, JSON.stringify(projectPackageJson, null, 2) + "\n");
+    return;
+  }
+
+  let existingPackageJson;
+  try {
+    existingPackageJson = JSON.parse(await fs.readFile(targetPath, "utf8"));
+  } catch (error) {
+    throw new Error(`Existing package.json is not valid JSON: ${targetPath}`, { cause: error });
+  }
+
+  const mergedPackageJson = mergeProjectPackageJson(existingPackageJson, projectPackageJson);
+  await writeTextFile(targetPath, JSON.stringify(mergedPackageJson, null, 2) + "\n");
 }
 
 async function loadRenderState(projectDir, environment) {
@@ -268,7 +323,7 @@ export async function scaffoldProject(projectDir, options = {}) {
     }
   };
 
-  await writeProjectFile(path.join(projectDir, "package.json"), JSON.stringify(projectPackageJson, null, 2) + "\n", force);
+  await writeProjectPackageJson(path.join(projectDir, "package.json"), projectPackageJson, force);
   await writeProjectFile(path.join(projectDir, "s3te.config.json"), JSON.stringify(config, null, 2) + "\n", force);
   await writeProjectFile(path.join(projectDir, "offline", "schemas", "s3te.config.schema.json"), JSON.stringify(schemaTemplate(), null, 2) + "\n", force);
   await writeProjectFile(path.join(projectDir, "app", "part", "head.part"), "<meta charset='utf-8'>\n<title>My S3TE Site</title>\n", force);

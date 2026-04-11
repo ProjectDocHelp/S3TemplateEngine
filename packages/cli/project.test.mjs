@@ -4,7 +4,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { doctorProject, migrateProject, scaffoldProject, validateProject } from "./src/project.mjs";
+import { validateAndResolveProjectConfig } from "../core/src/index.mjs";
+import { doctorProject, migrateProject, runProjectTests, scaffoldProject, validateProject } from "./src/project.mjs";
 
 test("migrateProject can retrofit webiny onto an existing S3TE config", async () => {
   const migration = await migrateProject("s3te.config.json", {
@@ -127,6 +128,170 @@ test("doctorProject reports an unknown environment instead of crashing", async (
   assert.equal(checks.at(-1)?.name, "environment");
   assert.equal(checks.at(-1)?.ok, false);
   assert.equal(checks.at(-1)?.message, "Unknown environment dev. Known environments: test, prod.");
+});
+
+test("doctorProject reports derived aliases that are not covered by the ACM certificate", async (context) => {
+  const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "s3te-doctor-"));
+  context.after(async () => {
+    await fs.rm(projectDir, { recursive: true, force: true });
+  });
+  await fs.mkdir(path.join(projectDir, "app", "website"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "part"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "app"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "part-app"), { recursive: true });
+  await fs.writeFile(path.join(projectDir, "s3te.config.json"), "{}\n");
+
+  const resolved = await validateAndResolveProjectConfig({
+    project: {
+      name: "sop"
+    },
+    environments: {
+      test: {
+        awsRegion: "eu-west-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/test"
+      },
+      prod: {
+        awsRegion: "eu-west-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/prod"
+      }
+    },
+    variants: {
+      website: {
+        defaultLanguage: "de",
+        languages: {
+          de: {
+            baseUrl: "schwimmbad-oberprechtal.de",
+            cloudFrontAliases: ["schwimmbad-oberprechtal.de"]
+          }
+        }
+      },
+      app: {
+        sourceDir: "app/app",
+        partDir: "app/part-app",
+        defaultLanguage: "de",
+        languages: {
+          de: {
+            baseUrl: "app.schwimmbad-oberprechtal.de",
+            cloudFrontAliases: ["app.schwimmbad-oberprechtal.de"]
+          }
+        }
+      }
+    }
+  }, {
+    projectDir
+  });
+
+  const checks = await doctorProject(projectDir, path.join(projectDir, "s3te.config.json"), {
+    environment: "test",
+    config: resolved.config,
+    ensureAwsCliAvailableFn: async () => {},
+    ensureAwsCredentialsFn: async () => ({ Arn: "arn:aws:iam::123456789012:user/test" }),
+    runAwsCliFn: async () => ({
+      stdout: JSON.stringify({
+        Certificate: {
+          DomainName: "schwimmbad-oberprechtal.de",
+          SubjectAlternativeNames: [
+            "schwimmbad-oberprechtal.de",
+            "*.schwimmbad-oberprechtal.de"
+          ]
+        }
+      })
+    })
+  });
+
+  const certificateCheck = checks.find((check) => check.name === "acm-certificate");
+  assert.equal(certificateCheck?.ok, false);
+  assert.match(certificateCheck?.message ?? "", /test\.app\.schwimmbad-oberprechtal\.de/);
+});
+
+test("doctorProject accepts a certificate that covers nested test aliases explicitly", async (context) => {
+  const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "s3te-doctor-"));
+  context.after(async () => {
+    await fs.rm(projectDir, { recursive: true, force: true });
+  });
+  await fs.mkdir(path.join(projectDir, "app", "website"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "part"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "app"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "part-app"), { recursive: true });
+  await fs.writeFile(path.join(projectDir, "s3te.config.json"), "{}\n");
+
+  const resolved = await validateAndResolveProjectConfig({
+    project: {
+      name: "sop"
+    },
+    environments: {
+      test: {
+        awsRegion: "eu-west-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/test"
+      },
+      prod: {
+        awsRegion: "eu-west-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/prod"
+      }
+    },
+    variants: {
+      website: {
+        defaultLanguage: "de",
+        languages: {
+          de: {
+            baseUrl: "schwimmbad-oberprechtal.de",
+            cloudFrontAliases: ["schwimmbad-oberprechtal.de"]
+          }
+        }
+      },
+      app: {
+        sourceDir: "app/app",
+        partDir: "app/part-app",
+        defaultLanguage: "de",
+        languages: {
+          de: {
+            baseUrl: "app.schwimmbad-oberprechtal.de",
+            cloudFrontAliases: ["app.schwimmbad-oberprechtal.de"]
+          }
+        }
+      }
+    }
+  }, {
+    projectDir
+  });
+
+  const checks = await doctorProject(projectDir, path.join(projectDir, "s3te.config.json"), {
+    environment: "test",
+    config: resolved.config,
+    ensureAwsCliAvailableFn: async () => {},
+    ensureAwsCredentialsFn: async () => ({ Arn: "arn:aws:iam::123456789012:user/test" }),
+    runAwsCliFn: async () => ({
+      stdout: JSON.stringify({
+        Certificate: {
+          DomainName: "schwimmbad-oberprechtal.de",
+          SubjectAlternativeNames: [
+            "schwimmbad-oberprechtal.de",
+            "*.schwimmbad-oberprechtal.de",
+            "*.app.schwimmbad-oberprechtal.de"
+          ]
+        }
+      })
+    })
+  });
+
+  const certificateCheck = checks.find((check) => check.name === "acm-certificate");
+  assert.equal(certificateCheck?.ok, true);
+  assert.match(certificateCheck?.message ?? "", /covers 2 CloudFront alias/);
+});
+
+test("runProjectTests executes scaffolded offline tests successfully", async (context) => {
+  const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "s3te-test-"));
+  context.after(async () => {
+    await fs.rm(projectDir, { recursive: true, force: true });
+  });
+
+  await scaffoldProject(projectDir, {
+    projectName: "sop",
+    baseUrl: "example.com"
+  });
+
+  const exitCode = await runProjectTests(projectDir);
+  assert.equal(exitCode, 0);
 });
 
 test("scaffoldProject merges an existing npm-generated package.json", async (context) => {

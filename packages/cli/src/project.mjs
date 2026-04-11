@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 
 import {
   S3teError,
+  buildEnvironmentRuntimeConfig,
   createManualRenderTargets,
   isRenderableKey,
   loadProjectConfig,
@@ -16,6 +17,7 @@ import {
   ensureAwsCliAvailable,
   ensureAwsCredentials,
   packageAwsProject,
+  runAwsCli,
   syncAwsProject
 } from "../../aws-adapter/src/index.mjs";
 
@@ -32,9 +34,100 @@ function normalizePath(value) {
   return String(value).replace(/\\/g, "/");
 }
 
+function isProjectTestFile(filename) {
+  return /(?:^test-.*|.*\.(?:test|spec))\.(?:cjs|mjs|js)$/i.test(filename);
+}
+
+async function listProjectTestFiles(rootDir, currentDir = rootDir) {
+  const entries = await fs.readdir(currentDir, { withFileTypes: true });
+  const files = [];
+
+  for (const entry of entries) {
+    const fullPath = path.join(currentDir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...await listProjectTestFiles(rootDir, fullPath));
+      continue;
+    }
+
+    if (entry.isFile() && isProjectTestFile(entry.name)) {
+      files.push(normalizePath(path.relative(rootDir, fullPath)));
+    }
+  }
+
+  return files.sort();
+}
+
 function unknownEnvironmentMessage(config, environmentName) {
   const knownEnvironments = Object.keys(config?.environments ?? {});
   return `Unknown environment ${environmentName}. Known environments: ${knownEnvironments.length > 0 ? knownEnvironments.join(", ") : "(none)"}.`;
+}
+
+function normalizeHostname(value) {
+  return String(value ?? "").trim().toLowerCase().replace(/\.+$/, "");
+}
+
+function certificatePatternMatchesHost(pattern, hostname) {
+  const normalizedPattern = normalizeHostname(pattern);
+  const normalizedHostname = normalizeHostname(hostname);
+
+  if (!normalizedPattern || !normalizedHostname) {
+    return false;
+  }
+
+  if (!normalizedPattern.includes("*")) {
+    return normalizedPattern === normalizedHostname;
+  }
+
+  const patternLabels = normalizedPattern.split(".");
+  const hostnameLabels = normalizedHostname.split(".");
+
+  if (patternLabels[0] !== "*" || patternLabels.slice(1).some((label) => label.includes("*"))) {
+    return false;
+  }
+
+  if (patternLabels.length !== hostnameLabels.length) {
+    return false;
+  }
+
+  return patternLabels.slice(1).join(".") === hostnameLabels.slice(1).join(".");
+}
+
+function findUncoveredCertificateHosts(hostnames, certificateDomains) {
+  const normalizedCertificateDomains = [...new Set(
+    certificateDomains
+      .map((value) => normalizeHostname(value))
+      .filter(Boolean)
+  )];
+
+  return [...new Set(
+    hostnames
+      .map((value) => normalizeHostname(value))
+      .filter(Boolean)
+      .filter((hostname) => !normalizedCertificateDomains.some((pattern) => certificatePatternMatchesHost(pattern, hostname)))
+  )].sort();
+}
+
+function collectEnvironmentCloudFrontAliases(config, environmentName) {
+  const runtimeConfig = buildEnvironmentRuntimeConfig(config, environmentName);
+  const aliases = [];
+
+  for (const variantConfig of Object.values(runtimeConfig.variants)) {
+    for (const languageConfig of Object.values(variantConfig.languages)) {
+      aliases.push(...(languageConfig.cloudFrontAliases ?? []));
+    }
+  }
+
+  return [...new Set(aliases.map((value) => normalizeHostname(value)).filter(Boolean))].sort();
+}
+
+async function describeAcmCertificate({ certificateArn, profile, cwd, runAwsCliFn }) {
+  const response = await runAwsCliFn(["acm", "describe-certificate", "--certificate-arn", certificateArn, "--output", "json"], {
+    region: "us-east-1",
+    profile,
+    cwd,
+    errorCode: "AWS_AUTH_ERROR"
+  });
+  return JSON.parse(response.stdout || "{}").Certificate ?? {};
 }
 
 function assertKnownEnvironment(config, environmentName) {
@@ -736,8 +829,12 @@ export async function runProjectTests(projectDir) {
   const testsDir = await fileExists(path.join(projectDir, "offline", "tests"))
     ? "offline/tests"
     : "tests";
+  const testFiles = await listProjectTestFiles(path.join(projectDir, testsDir));
+  const testArgs = testFiles.length > 0
+    ? testFiles.map((relativePath) => normalizePath(path.join(testsDir, relativePath)))
+    : [testsDir];
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, ["--test", testsDir], {
+    const child = spawn(process.execPath, ["--test", ...testArgs], {
       cwd: projectDir,
       stdio: "inherit"
     });
@@ -787,6 +884,9 @@ export async function syncProject(projectDir, config, options = {}) {
 }
 
 export async function doctorProject(projectDir, configPath, options = {}) {
+  const ensureAwsCliAvailableFn = options.ensureAwsCliAvailableFn ?? ensureAwsCliAvailable;
+  const ensureAwsCredentialsFn = options.ensureAwsCredentialsFn ?? ensureAwsCredentials;
+  const runAwsCliFn = options.runAwsCliFn ?? runAwsCli;
   const checks = [];
   const majorVersion = Number(process.versions.node.split(".")[0]);
 
@@ -811,7 +911,7 @@ export async function doctorProject(projectDir, configPath, options = {}) {
   }
 
   try {
-    await ensureAwsCliAvailable({ cwd: projectDir });
+    await ensureAwsCliAvailableFn({ cwd: projectDir });
     checks.push({ name: "aws-cli", ok: true, message: "AWS CLI available" });
   } catch (error) {
     checks.push({ name: "aws-cli", ok: false, message: error.message });
@@ -828,7 +928,7 @@ export async function doctorProject(projectDir, configPath, options = {}) {
     }
 
     try {
-      await ensureAwsCredentials({
+      await ensureAwsCredentialsFn({
         region: options.config.environments[options.environment].awsRegion,
         profile: options.profile,
         cwd: projectDir
@@ -836,6 +936,38 @@ export async function doctorProject(projectDir, configPath, options = {}) {
       checks.push({ name: "aws-auth", ok: true, message: `AWS credentials valid for ${options.environment}` });
     } catch (error) {
       checks.push({ name: "aws-auth", ok: false, message: error.message });
+    }
+
+    const environmentConfig = options.config.environments[options.environment];
+    const awsAuthCheck = checks.at(-1);
+    if (awsAuthCheck?.name === "aws-auth" && awsAuthCheck.ok) {
+      try {
+        const cloudFrontAliases = collectEnvironmentCloudFrontAliases(options.config, options.environment);
+        const certificate = await describeAcmCertificate({
+          certificateArn: environmentConfig.certificateArn,
+          profile: options.profile,
+          cwd: projectDir,
+          runAwsCliFn
+        });
+        const certificateDomains = [
+          certificate.DomainName,
+          ...(certificate.SubjectAlternativeNames ?? [])
+        ];
+        const uncoveredAliases = findUncoveredCertificateHosts(cloudFrontAliases, certificateDomains);
+        checks.push({
+          name: "acm-certificate",
+          ok: uncoveredAliases.length === 0,
+          message: uncoveredAliases.length === 0
+            ? `ACM certificate covers ${cloudFrontAliases.length} CloudFront alias(es) for ${options.environment}`
+            : `ACM certificate ${environmentConfig.certificateArn} does not cover these CloudFront aliases for ${options.environment}: ${uncoveredAliases.join(", ")}.`
+        });
+      } catch (error) {
+        checks.push({
+          name: "acm-certificate",
+          ok: false,
+          message: `Could not inspect ACM certificate ${environmentConfig.certificateArn}: ${error.message}`
+        });
+      }
     }
   }
 

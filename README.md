@@ -80,7 +80,7 @@ This section is only about the AWS things you need before you touch S3TE. The ac
 | Daily-work AWS access | `s3te deploy` needs credentials that can create CloudFormation stacks and related resources. | [Create an IAM user](https://docs.aws.amazon.com/console/iam/add-users), [Manage access keys](https://docs.aws.amazon.com/IAM/latest/UserGuide/access-keys-admin-managed.html) |
 | AWS CLI v2 | The S3TE CLI shells out to the official `aws` CLI. | [Install AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html), [Get started with AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html) |
 | Domain name you control | CloudFront and TLS only make sense for domains you can point to AWS. | Use your registrar of choice |
-| ACM certificate in `us-east-1` | CloudFront requires its public certificate in `us-east-1`. | [Public certificates in ACM](https://docs.aws.amazon.com/acm/latest/userguide/acm-public-certificates.html) |
+| ACM certificate in `us-east-1` | CloudFront requires its public certificate in `us-east-1`, and the certificate must cover every alias S3TE will derive for that environment. | [Public certificates in ACM](https://docs.aws.amazon.com/acm/latest/userguide/acm-public-certificates.html) |
 | Optional Route53 hosted zone | Needed only if S3TE should create DNS alias records automatically. | [Create a public hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/CreatingHostedZone.html) |
 
 </details>
@@ -228,6 +228,12 @@ The most important fields for a first deployment are:
 
 Use plain hostnames in `baseUrl` and `cloudFrontAliases`, not full URLs. If your config contains a `prod` environment plus additional environments such as `test` or `stage`, S3TE keeps the `prod` hostname unchanged and derives non-production hostnames automatically by prepending `<env>.`.
 
+Your ACM certificate must cover the final derived aliases of the environment you deploy. Example:
+
+- `*.example.com` covers `test.example.com`
+- `*.example.com` does not cover `test.app.example.com`
+- for nested aliases like `test.app.example.com`, add a SAN such as `*.app.example.com`, the exact hostname, or use a different `certificateArn` for that environment
+
 </details>
 
 <details>
@@ -242,6 +248,8 @@ npx s3te deploy --env dev
 ```
 
 `render` writes the local preview into `offline/S3TELocal/preview/dev/...`.
+
+`doctor --env <name>` now also checks whether the configured ACM certificate covers the CloudFront aliases that S3TE derives for that environment. For that check, the AWS identity running `doctor` needs permission to call `acm:DescribeCertificate` for the configured certificate ARN.
 
 `deploy` creates or updates the persistent environment stack, uses a temporary deploy stack for packaged Lambda artifacts, synchronizes the source project into the code bucket, and removes the temporary stack again when the deploy finishes.
 

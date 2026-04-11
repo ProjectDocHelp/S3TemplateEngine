@@ -53,6 +53,52 @@ async function describeStack({ stackName, region, profile, cwd }) {
   return JSON.parse(describedStack.stdout).Stacks?.[0];
 }
 
+async function describeStackEvents({ stackName, region, profile, cwd }) {
+  const describedEvents = await runAwsCli(["cloudformation", "describe-stack-events", "--stack-name", stackName, "--output", "json"], {
+    region,
+    profile,
+    cwd,
+    errorCode: "ADAPTER_ERROR"
+  });
+  return JSON.parse(describedEvents.stdout).StackEvents ?? [];
+}
+
+export function summarizeStackFailureEvents(stackEvents = [], limit = 8) {
+  return stackEvents
+    .filter((event) => (
+      String(event.ResourceStatus ?? "").includes("FAILED")
+      || String(event.ResourceStatus ?? "").includes("ROLLBACK")
+    ))
+    .map((event) => ({
+      timestamp: event.Timestamp,
+      logicalResourceId: event.LogicalResourceId,
+      resourceType: event.ResourceType,
+      resourceStatus: event.ResourceStatus,
+      resourceStatusReason: event.ResourceStatusReason
+    }))
+    .slice(0, limit);
+}
+
+async function attachStackFailureDetails(error, { stackName, region, profile, cwd }) {
+  try {
+    const stackEvents = await describeStackEvents({ stackName, region, profile, cwd });
+    const summarizedEvents = summarizeStackFailureEvents(stackEvents);
+    if (summarizedEvents.length > 0) {
+      error.details = {
+        ...(error.details ?? {}),
+        stackFailureEvents: summarizedEvents
+      };
+    }
+  } catch (stackEventsError) {
+    error.details = {
+      ...(error.details ?? {}),
+      stackFailureEventsError: stackEventsError.message
+    };
+  }
+
+  return error;
+}
+
 async function deployCloudFormationStack({
   stackName,
   templatePath,
@@ -85,13 +131,22 @@ async function deployCloudFormationStack({
     args.push("--no-execute-changeset");
   }
 
-  await runAwsCli(args, {
-    region,
-    profile,
-    cwd,
-    stdio,
-    errorCode: "ADAPTER_ERROR"
-  });
+  try {
+    await runAwsCli(args, {
+      region,
+      profile,
+      cwd,
+      stdio,
+      errorCode: "ADAPTER_ERROR"
+    });
+  } catch (error) {
+    throw await attachStackFailureDetails(error, {
+      stackName,
+      region,
+      profile,
+      cwd
+    });
+  }
 }
 
 async function resolveWebinyStreamArn({ runtimeConfig, region, profile, cwd }) {
@@ -176,6 +231,63 @@ async function deployTemporaryArtifactsStack({
   };
 }
 
+export function collectBucketObjectVersions(payload = {}) {
+  return [
+    ...(payload.Versions ?? []),
+    ...(payload.DeleteMarkers ?? [])
+  ].map((entry) => ({
+    Key: entry.Key,
+    VersionId: entry.VersionId
+  })).filter((entry) => entry.Key && entry.VersionId);
+}
+
+function chunkItems(items, chunkSize) {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
+
+async function deleteBucketObjectVersions({
+  bucketName,
+  region,
+  profile,
+  cwd
+}) {
+  while (true) {
+    const listedVersions = await runAwsCli(["s3api", "list-object-versions", "--bucket", bucketName, "--output", "json"], {
+      region,
+      profile,
+      cwd,
+      errorCode: "ADAPTER_ERROR"
+    });
+    const objects = collectBucketObjectVersions(JSON.parse(listedVersions.stdout || "{}"));
+    if (objects.length === 0) {
+      return;
+    }
+
+    for (const batch of chunkItems(objects, 250)) {
+      await runAwsCli([
+        "s3api",
+        "delete-objects",
+        "--bucket",
+        bucketName,
+        "--delete",
+        JSON.stringify({
+          Objects: batch,
+          Quiet: true
+        })
+      ], {
+        region,
+        profile,
+        cwd,
+        errorCode: "ADAPTER_ERROR"
+      });
+    }
+  }
+}
+
 async function cleanupTemporaryArtifactsStack({
   stackName,
   artifactBucket,
@@ -190,6 +302,12 @@ async function cleanupTemporaryArtifactsStack({
         profile,
         cwd,
         errorCode: "ADAPTER_ERROR"
+      });
+      await deleteBucketObjectVersions({
+        bucketName: artifactBucket,
+        region,
+        profile,
+        cwd
       });
     } catch (error) {
       if (!String(error.message).includes("NoSuchBucket")) {

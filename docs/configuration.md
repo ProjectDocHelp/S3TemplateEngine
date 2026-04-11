@@ -198,6 +198,13 @@ Beispiele:
 - `dev` -> `DEV`
 - `stage-eu` -> `STAGE_EU`
 
+Hinweis zu `certificateArn`:
+
+- das Zertifikat muss in `us-east-1` liegen
+- es muss alle finalen CloudFront-Aliase des Environments abdecken
+- `*.example.com` deckt `test.example.com` ab, aber nicht `test.app.example.com`
+- fuer mehrstufige Hosts wie `test.app.example.com` braucht man zum Beispiel `*.app.example.com`, den exakten Hostnamen oder ein separates Zertifikat pro Environment
+
 ### `rendering`
 
 Optionaler Block.
@@ -300,6 +307,11 @@ Beispiele:
 
 - `schwimmbad-oberprechtal.de` wird in `test` zu `test.schwimmbad-oberprechtal.de`
 - `app.schwimmbad-oberprechtal.de` wird in `test` zu `test.app.schwimmbad-oberprechtal.de`
+
+Wichtig fuer ACM:
+
+- das Zertifikat des gewaehlten Environments muss diese abgeleiteten Aliase ebenfalls abdecken
+- ein einzelnes Wildcard-Zertifikat fuer `*.schwimmbad-oberprechtal.de` deckt `test.schwimmbad-oberprechtal.de` ab, aber nicht `test.app.schwimmbad-oberprechtal.de`
 
 Default fuer `targetBucket`, wenn nicht explizit gesetzt:
 

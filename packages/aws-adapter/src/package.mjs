@@ -221,11 +221,13 @@ export async function packageAwsProject({
   clean = false,
   features = []
 }) {
-  if (features.includes("webiny") && !config.integrations.webiny.enabled) {
+  const runtimeConfig = buildEnvironmentRuntimeConfig(config, environment);
+
+  if (features.includes("webiny") && !runtimeConfig.integrations.webiny.enabled) {
     throw new S3teError("ADAPTER_ERROR", "Feature webiny was requested but is not enabled in s3te.config.json.");
   }
 
-  const resolvedFeatures = resolveRequestedFeatures(config, features);
+  const resolvedFeatures = resolveRequestedFeatures(config, features, environment);
   const packageDir = outDir
     ? path.join(projectDir, outDir)
     : path.join(projectDir, "offline", "IAAS", "package", environment);
@@ -234,7 +236,6 @@ export async function packageAwsProject({
   }
   await ensureDirectory(packageDir);
 
-  const runtimeConfig = buildEnvironmentRuntimeConfig(config, environment);
   const lambdaDir = path.join(packageDir, "lambda");
   const templatePath = path.join(packageDir, "cloudformation.template.json");
   const packagingManifestPath = path.join(packageDir, "manifest.json");

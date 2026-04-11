@@ -46,6 +46,14 @@ function isValidUpperSnake(value) {
   return /^[A-Z0-9_]+$/.test(value);
 }
 
+function normalizeStringList(values, fallback = []) {
+  const source = values ?? fallback;
+  const items = Array.isArray(source) ? source : [source];
+  return [...new Set(items
+    .map((value) => String(value).trim())
+    .filter(Boolean))];
+}
+
 function isProductionEnvironment(environmentName) {
   return String(environmentName).trim().toLowerCase() === "prod";
 }
@@ -122,6 +130,35 @@ function createPlaceholderContext(config, environmentName, variantName, language
     project: config.project.name,
     variant: variantName ?? "website",
     lang: languageCode ?? variantConfig?.defaultLanguage ?? "en"
+  };
+}
+
+function resolveWebinyConfigDefaults(webinyConfig = {}) {
+  return {
+    enabled: webinyConfig.enabled ?? false,
+    sourceTableName: webinyConfig.sourceTableName,
+    mirrorTableName: webinyConfig.mirrorTableName ?? "{stackPrefix}_s3te_content_{project}",
+    relevantModels: normalizeStringList(webinyConfig.relevantModels, ["staticContent", "staticCodeContent"]),
+    tenant: webinyConfig.tenant
+  };
+}
+
+function resolveProjectWebinyConfig(projectConfig) {
+  const baseConfig = resolveWebinyConfigDefaults(projectConfig.integrations?.webiny ?? {});
+  const environmentConfigs = Object.fromEntries(Object.entries(projectConfig.integrations?.webiny?.environments ?? {}).map(([environmentName, webinyConfig]) => ([
+    environmentName,
+    {
+      enabled: webinyConfig.enabled,
+      sourceTableName: webinyConfig.sourceTableName,
+      mirrorTableName: webinyConfig.mirrorTableName,
+      relevantModels: webinyConfig.relevantModels ? normalizeStringList(webinyConfig.relevantModels) : undefined,
+      tenant: webinyConfig.tenant
+    }
+  ])));
+
+  return {
+    ...baseConfig,
+    environments: environmentConfigs
   };
 }
 
@@ -210,13 +247,7 @@ export function resolveProjectConfig(projectConfig) {
   };
 
   const integrations = {
-    webiny: {
-      enabled: projectConfig.integrations?.webiny?.enabled ?? false,
-      sourceTableName: projectConfig.integrations?.webiny?.sourceTableName,
-      mirrorTableName: projectConfig.integrations?.webiny?.mirrorTableName ?? "{stackPrefix}_s3te_content_{project}",
-      relevantModels: projectConfig.integrations?.webiny?.relevantModels ?? ["staticContent", "staticCodeContent"],
-      tenant: projectConfig.integrations?.webiny?.tenant
-    }
+    webiny: resolveProjectWebinyConfig(projectConfig)
   };
 
   for (const [variantName, variantConfig] of Object.entries(variants)) {
@@ -271,13 +302,29 @@ export function resolveCloudFrontAliases(config, environmentName, variantName, l
     .map((alias) => prefixHostForEnvironment(config, alias, environmentName));
 }
 
+export function resolveEnvironmentWebinyIntegration(config, environmentName) {
+  const baseConfig = resolveWebinyConfigDefaults(config.integrations?.webiny ?? {});
+  const environmentOverride = config.integrations?.webiny?.environments?.[environmentName] ?? {};
+
+  return {
+    enabled: environmentOverride.enabled ?? baseConfig.enabled,
+    sourceTableName: environmentOverride.sourceTableName ?? baseConfig.sourceTableName,
+    mirrorTableName: environmentOverride.mirrorTableName ?? baseConfig.mirrorTableName,
+    relevantModels: environmentOverride.relevantModels
+      ? normalizeStringList(environmentOverride.relevantModels)
+      : [...baseConfig.relevantModels],
+    tenant: environmentOverride.tenant ?? baseConfig.tenant
+  };
+}
+
 export function resolveTableNames(config, environmentName) {
   const context = createPlaceholderContext(config, environmentName);
+  const webinyConfig = resolveEnvironmentWebinyIntegration(config, environmentName);
   return {
     dependency: replacePlaceholders(config.aws.dependencyStore.tableName, context),
     content: replacePlaceholders(config.aws.contentStore.tableName, context),
     invalidation: replacePlaceholders(config.aws.invalidationStore.tableName, context),
-    webinyMirror: replacePlaceholders(config.integrations.webiny.mirrorTableName, context)
+    webinyMirror: replacePlaceholders(webinyConfig.mirrorTableName, context)
   };
 }
 
@@ -292,6 +339,7 @@ export function resolveStackName(config, environmentName) {
 
 export function buildEnvironmentRuntimeConfig(config, environmentName, stackOutputs = {}) {
   const environmentConfig = config.environments[environmentName];
+  const webinyConfig = resolveEnvironmentWebinyIntegration(config, environmentName);
   const tables = resolveTableNames(config, environmentName);
   const runtimeParameterName = resolveRuntimeManifestParameterName(config, environmentName);
   const stackName = resolveStackName(config, environmentName);
@@ -338,7 +386,7 @@ export function buildEnvironmentRuntimeConfig(config, environmentName, stackOutp
     rendering: { ...config.rendering },
     integrations: {
       webiny: {
-        ...config.integrations.webiny,
+        ...webinyConfig,
         mirrorTableName: tables.webinyMirror
       }
     },
@@ -453,11 +501,27 @@ export async function validateAndResolveProjectConfig(projectConfig, options = {
     }
   }
 
-  if (projectConfig.integrations?.webiny?.enabled && !projectConfig.integrations?.webiny?.sourceTableName) {
-    errors.push({
-      code: "CONFIG_CONFLICT_ERROR",
-      message: "Webiny integration requires sourceTableName when enabled."
-    });
+  const configuredWebiny = projectConfig.integrations?.webiny;
+  for (const [environmentName] of environmentEntries) {
+    const environmentWebinyConfig = resolveEnvironmentWebinyIntegration(resolveProjectConfig({
+      ...projectConfig,
+      environments: Object.fromEntries(environmentEntries)
+    }), environmentName);
+    if (environmentWebinyConfig.enabled && !environmentWebinyConfig.sourceTableName) {
+      errors.push({
+        code: "CONFIG_CONFLICT_ERROR",
+        message: `Webiny integration requires sourceTableName when enabled for environment ${environmentName}.`
+      });
+    }
+  }
+
+  for (const environmentName of Object.keys(configuredWebiny?.environments ?? {})) {
+    if (!projectConfig.environments?.[environmentName]) {
+      errors.push({
+        code: "CONFIG_CONFLICT_ERROR",
+        message: `integrations.webiny.environments.${environmentName} does not match a configured environment.`
+      });
+    }
   }
 
   for (const [variantName, pattern] of Object.entries(projectConfig.aws?.codeBuckets ?? {})) {
@@ -473,8 +537,13 @@ export async function validateAndResolveProjectConfig(projectConfig, options = {
   if (projectConfig.aws?.invalidationStore?.tableName) {
     ensureKnownPlaceholders(projectConfig.aws.invalidationStore.tableName, "aws.invalidationStore.tableName", errors);
   }
-  if (projectConfig.integrations?.webiny?.mirrorTableName) {
-    ensureKnownPlaceholders(projectConfig.integrations.webiny.mirrorTableName, "integrations.webiny.mirrorTableName", errors);
+  if (configuredWebiny?.mirrorTableName) {
+    ensureKnownPlaceholders(configuredWebiny.mirrorTableName, "integrations.webiny.mirrorTableName", errors);
+  }
+  for (const [environmentName, webinyConfig] of Object.entries(configuredWebiny?.environments ?? {})) {
+    if (webinyConfig.mirrorTableName) {
+      ensureKnownPlaceholders(webinyConfig.mirrorTableName, `integrations.webiny.environments.${environmentName}.mirrorTableName`, errors);
+    }
   }
 
   if (errors.length > 0) {

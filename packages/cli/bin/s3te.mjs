@@ -349,6 +349,7 @@ async function main() {
     const rawConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
     const migration = await migrateProject(configPath, rawConfig, {
       writeChanges: Boolean(options.write) && !Boolean(options["dry-run"]),
+      environment: asArray(options.env)[0],
       enableWebiny: Boolean(options["enable-webiny"]),
       disableWebiny: Boolean(options["disable-webiny"]),
       webinySourceTable: options["webiny-source-table"],

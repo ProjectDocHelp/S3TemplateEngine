@@ -5,6 +5,7 @@ import {
   resolveBaseUrl,
   resolveCloudFrontAliases,
   resolveCodeBucketName,
+  resolveEnvironmentWebinyIntegration,
   resolveProjectConfig,
   resolveTargetBucketName,
   resolveTableNames,
@@ -143,6 +144,65 @@ test("config validation rejects unknown placeholders", async () => {
   assert.match(result.errors[0].code, /CONFIG_PLACEHOLDER_ERROR/);
 });
 
+test("config resolves webiny overrides per environment", () => {
+  const config = resolveProjectConfig({
+    project: {
+      name: "mysite"
+    },
+    environments: {
+      test: {
+        awsRegion: "eu-central-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/test"
+      },
+      prod: {
+        awsRegion: "eu-central-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/prod"
+      }
+    },
+    variants: {
+      website: {
+        defaultLanguage: "en",
+        languages: {
+          en: {
+            baseUrl: "example.com",
+            cloudFrontAliases: ["example.com"]
+          }
+        }
+      }
+    },
+    integrations: {
+      webiny: {
+        enabled: true,
+        sourceTableName: "webiny-live",
+        mirrorTableName: "{stackPrefix}_s3te_content_{project}",
+        tenant: "root",
+        relevantModels: ["staticContent", "staticCodeContent", "article"],
+        environments: {
+          test: {
+            sourceTableName: "webiny-test",
+            tenant: "preview"
+          }
+        }
+      }
+    }
+  });
+
+  assert.deepEqual(resolveEnvironmentWebinyIntegration(config, "prod"), {
+    enabled: true,
+    sourceTableName: "webiny-live",
+    mirrorTableName: "{stackPrefix}_s3te_content_{project}",
+    tenant: "root",
+    relevantModels: ["staticContent", "staticCodeContent", "article"]
+  });
+  assert.deepEqual(resolveEnvironmentWebinyIntegration(config, "test"), {
+    enabled: true,
+    sourceTableName: "webiny-test",
+    mirrorTableName: "{stackPrefix}_s3te_content_{project}",
+    tenant: "preview",
+    relevantModels: ["staticContent", "staticCodeContent", "article"]
+  });
+});
+
 test("config validation rejects full URLs in host fields", async () => {
   const result = await validateAndResolveProjectConfig({
     project: {
@@ -172,4 +232,43 @@ test("config validation rejects full URLs in host fields", async () => {
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((error) => /baseUrl must be a hostname/.test(error.message)));
   assert.ok(result.errors.some((error) => /cloudFrontAliases must contain hostnames/.test(error.message)));
+});
+
+test("config validation rejects webiny environments without a source table", async () => {
+  const result = await validateAndResolveProjectConfig({
+    project: {
+      name: "mysite"
+    },
+    environments: {
+      test: {
+        awsRegion: "eu-central-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/test"
+      }
+    },
+    variants: {
+      website: {
+        defaultLanguage: "en",
+        languages: {
+          en: {
+            baseUrl: "example.com",
+            cloudFrontAliases: ["example.com"]
+          }
+        }
+      }
+    },
+    integrations: {
+      webiny: {
+        environments: {
+          test: {
+            enabled: true
+          }
+        }
+      }
+    }
+  }, {
+    projectDir: "d:/Git/s3templateengine/examples/minimal-site"
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => /requires sourceTableName when enabled for environment test/.test(error.message)));
 });

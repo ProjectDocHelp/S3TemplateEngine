@@ -207,6 +207,23 @@ function schemaTemplate() {
               relevantModels: {
                 type: "array",
                 items: { type: "string" }
+              },
+              environments: {
+                type: "object",
+                additionalProperties: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    enabled: { type: "boolean" },
+                    sourceTableName: { type: "string" },
+                    mirrorTableName: { type: "string" },
+                    tenant: { type: "string" },
+                    relevantModels: {
+                      type: "array",
+                      items: { type: "string" }
+                    }
+                  }
+                }
               }
             }
           }
@@ -716,6 +733,7 @@ export async function migrateProject(configPath, rawConfig, writeChanges) {
 
   const enableWebiny = Boolean(options.enableWebiny);
   const disableWebiny = Boolean(options.disableWebiny);
+  const targetEnvironment = options.environment ? String(options.environment).trim() : "";
   const webinySourceTable = options.webinySourceTable ? String(options.webinySourceTable).trim() : "";
   const webinyTenant = options.webinyTenant ? String(options.webinyTenant).trim() : "";
   const webinyModels = normalizeStringList(options.webinyModels);
@@ -724,45 +742,84 @@ export async function migrateProject(configPath, rawConfig, writeChanges) {
     throw new S3teError("CONFIG_CONFLICT_ERROR", "migrate does not allow --enable-webiny and --disable-webiny at the same time.");
   }
 
-  const touchesWebiny = enableWebiny || disableWebiny || Boolean(webinySourceTable) || webinyModels.length > 0;
+  const touchesWebiny = enableWebiny || disableWebiny || Boolean(webinySourceTable) || Boolean(webinyTenant) || webinyModels.length > 0;
   if (touchesWebiny) {
+    if (targetEnvironment && !nextConfig.environments?.[targetEnvironment]) {
+      throw new S3teError("CONFIG_CONFLICT_ERROR", `Unknown environment for migrate: ${targetEnvironment}.`);
+    }
+
     const existingIntegrations = nextConfig.integrations ?? {};
     const existingWebiny = existingIntegrations.webiny ?? {};
-    const existingModels = normalizeStringList(existingWebiny.relevantModels ?? ["staticContent", "staticCodeContent"]);
+    const existingEnvironmentOverrides = existingWebiny.environments ?? {};
+    const existingTargetWebiny = targetEnvironment
+      ? (existingEnvironmentOverrides[targetEnvironment] ?? {})
+      : existingWebiny;
+    const inheritedModels = normalizeStringList(
+      existingTargetWebiny.relevantModels
+      ?? (targetEnvironment ? existingWebiny.relevantModels : undefined)
+      ?? ["staticContent", "staticCodeContent"]
+    );
     const shouldEnableWebiny = disableWebiny
       ? false
       : (enableWebiny || Boolean(webinySourceTable) || webinyModels.length > 0
           ? true
-          : Boolean(existingWebiny.enabled));
-    const nextSourceTableName = webinySourceTable || existingWebiny.sourceTableName || "";
+          : Boolean(targetEnvironment
+              ? (existingTargetWebiny.enabled ?? existingWebiny.enabled)
+              : existingWebiny.enabled));
+    const nextSourceTableName = webinySourceTable
+      || existingTargetWebiny.sourceTableName
+      || (targetEnvironment ? existingWebiny.sourceTableName : "")
+      || "";
 
     if (shouldEnableWebiny && !nextSourceTableName) {
-      throw new S3teError("CONFIG_CONFLICT_ERROR", "Enabling Webiny requires --webiny-source-table <table> or an existing integrations.webiny.sourceTableName.");
+      throw new S3teError(
+        "CONFIG_CONFLICT_ERROR",
+        targetEnvironment
+          ? `Enabling Webiny for environment ${targetEnvironment} requires --webiny-source-table <table> or an existing sourceTableName.`
+          : "Enabling Webiny requires --webiny-source-table <table> or an existing integrations.webiny.sourceTableName."
+      );
     }
+
+    const nextWebinyConfig = {
+      enabled: shouldEnableWebiny,
+      sourceTableName: nextSourceTableName || undefined,
+      mirrorTableName: existingTargetWebiny.mirrorTableName
+        ?? (targetEnvironment ? existingWebiny.mirrorTableName : undefined)
+        ?? "{stackPrefix}_s3te_content_{project}",
+      tenant: webinyTenant || existingTargetWebiny.tenant || (targetEnvironment ? existingWebiny.tenant : undefined) || undefined,
+      relevantModels: normalizeStringList([
+        ...(inheritedModels.length > 0 ? inheritedModels : ["staticContent", "staticCodeContent"]),
+        ...webinyModels
+      ])
+    };
 
     nextConfig.integrations = {
       ...existingIntegrations,
-      webiny: {
-        enabled: shouldEnableWebiny,
-        sourceTableName: nextSourceTableName || undefined,
-        mirrorTableName: existingWebiny.mirrorTableName ?? "{stackPrefix}_s3te_content_{project}",
-        tenant: webinyTenant || existingWebiny.tenant || undefined,
-        relevantModels: normalizeStringList([
-          ...(existingModels.length > 0 ? existingModels : ["staticContent", "staticCodeContent"]),
-          ...webinyModels
-        ])
-      }
+      webiny: targetEnvironment
+        ? {
+            ...existingWebiny,
+            environments: {
+              ...existingEnvironmentOverrides,
+              [targetEnvironment]: nextWebinyConfig
+            }
+          }
+        : {
+            ...existingWebiny,
+            ...nextWebinyConfig,
+            environments: existingEnvironmentOverrides
+          }
     };
 
-    changes.push(shouldEnableWebiny ? "Enabled Webiny integration." : "Disabled Webiny integration.");
+    const scopeLabel = targetEnvironment ? ` for environment ${targetEnvironment}` : "";
+    changes.push(shouldEnableWebiny ? `Enabled Webiny integration${scopeLabel}.` : `Disabled Webiny integration${scopeLabel}.`);
     if (webinySourceTable) {
-      changes.push(`Set Webiny source table to ${webinySourceTable}.`);
+      changes.push(`Set Webiny source table${scopeLabel} to ${webinySourceTable}.`);
     }
     if (webinyTenant) {
-      changes.push(`Set Webiny tenant to ${webinyTenant}.`);
+      changes.push(`Set Webiny tenant${scopeLabel} to ${webinyTenant}.`);
     }
     if (webinyModels.length > 0) {
-      changes.push(`Added Webiny models: ${webinyModels.join(", ")}.`);
+      changes.push(`Added Webiny models${scopeLabel}: ${webinyModels.join(", ")}.`);
     }
   }
 

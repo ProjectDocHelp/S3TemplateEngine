@@ -212,6 +212,33 @@
               "items": {
                 "type": "string"
               }
+            },
+            "environments": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "sourceTableName": {
+                    "type": "string"
+                  },
+                  "mirrorTableName": {
+                    "type": "string"
+                  },
+                  "tenant": {
+                    "type": "string"
+                  },
+                  "relevantModels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
             }
           }
         }

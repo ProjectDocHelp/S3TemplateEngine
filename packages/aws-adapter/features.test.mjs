@@ -5,6 +5,9 @@ import { resolveRequestedFeatures } from "./src/features.mjs";
 
 test("configured webiny becomes an active feature even without explicit CLI flag", () => {
   const features = resolveRequestedFeatures({
+    environments: {
+      prod: {}
+    },
     integrations: {
       webiny: {
         enabled: true
@@ -17,6 +20,9 @@ test("configured webiny becomes an active feature even without explicit CLI flag
 
 test("requested features are de-duplicated against configured features", () => {
   const features = resolveRequestedFeatures({
+    environments: {
+      prod: {}
+    },
     integrations: {
       webiny: {
         enabled: true
@@ -25,4 +31,26 @@ test("requested features are de-duplicated against configured features", () => {
   }, ["webiny"]);
 
   assert.deepEqual(features, ["webiny"]);
+});
+
+test("configured webiny can be enabled only for a specific environment", () => {
+  const config = {
+    environments: {
+      test: {},
+      prod: {}
+    },
+    integrations: {
+      webiny: {
+        environments: {
+          test: {
+            enabled: true,
+            sourceTableName: "webiny-test"
+          }
+        }
+      }
+    }
+  };
+
+  assert.deepEqual(resolveRequestedFeatures(config, [], "test"), ["webiny"]);
+  assert.deepEqual(resolveRequestedFeatures(config, [], "prod"), []);
 });

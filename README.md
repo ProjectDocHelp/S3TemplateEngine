@@ -372,6 +372,13 @@ npx s3te migrate --enable-webiny --webiny-source-table webiny-1234567 --webiny-t
 
 `staticContent` and `staticCodeContent` are kept automatically. Add `--webiny-model` once per custom model you want S3TE to mirror.
 
+If different environments should read from different Webiny installations or tenants, run the migration per environment:
+
+```bash
+npx s3te migrate --env test --enable-webiny --webiny-source-table webiny-test-1234567 --webiny-tenant preview --write
+npx s3te migrate --env prod --enable-webiny --webiny-source-table webiny-live-1234567 --webiny-tenant root --write
+```
+
 4. Turn on DynamoDB Streams for the Webiny source table with `NEW_AND_OLD_IMAGES`.
 5. If your S3TE language keys are not identical to your Webiny locales, add `webinyLocale` per language in `s3te.config.json`, for example `"en": { "webinyLocale": "en-US" }`.
 6. If your Webiny installation hosts multiple tenants, keep `integrations.webiny.tenant` set so S3TE only mirrors the intended tenant.
@@ -405,7 +412,17 @@ Example config block:
     "sourceTableName": "webiny-1234567",
     "mirrorTableName": "{stackPrefix}_s3te_content_{project}",
     "tenant": "root",
-    "relevantModels": ["article", "staticContent", "staticCodeContent"]
+    "relevantModels": ["article", "staticContent", "staticCodeContent"],
+    "environments": {
+      "test": {
+        "sourceTableName": "webiny-test-1234567",
+        "tenant": "preview"
+      },
+      "prod": {
+        "sourceTableName": "webiny-live-1234567",
+        "tenant": "root"
+      }
+    }
   }
 }
 ```

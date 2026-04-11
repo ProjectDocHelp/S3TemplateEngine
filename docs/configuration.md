@@ -135,7 +135,17 @@ Die Zielimplementierung muss die Konfiguration in dieser Reihenfolge aufbereiten
       "sourceTableName": "webiny-1234567",
       "mirrorTableName": "{stackPrefix}_s3te_content_{project}",
       "tenant": "root",
-      "relevantModels": ["staticContent", "staticCodeContent", "article"]
+      "relevantModels": ["staticContent", "staticCodeContent", "article"],
+      "environments": {
+        "test": {
+          "sourceTableName": "webiny-test-1234567",
+          "tenant": "preview"
+        },
+        "prod": {
+          "sourceTableName": "webiny-live-1234567",
+          "tenant": "root"
+        }
+      }
     }
   }
 }
@@ -250,8 +260,11 @@ Optionaler Block.
 - `mirrorTableName`: `{stackPrefix}_s3te_content_{project}`
 - `relevantModels`: `["staticContent", "staticCodeContent"]`
 - `tenant`: nicht gesetzt
+- `environments.<env>`: kein Override
 
-Wenn `enabled = true`, ist `sourceTableName` Pflicht.
+Wenn Webiny fuer ein Environment effektiv `enabled = true` ist, ist fuer dieses Environment `sourceTableName` Pflicht. Das kann global oder ueber `integrations.webiny.environments.<env>` geliefert werden.
+
+`integrations.webiny.environments.<env>` darf dieselben Felder wie `integrations.webiny` enthalten und ueberschreibt die globalen Webiny-Werte nur fuer dieses eine Environment.
 
 Fuer Webiny 6.x gilt zusaetzlich:
 

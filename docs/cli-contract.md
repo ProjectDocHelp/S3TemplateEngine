@@ -322,6 +322,7 @@ Aufruf:
 s3te migrate
 s3te migrate --to 1
 s3te migrate --enable-webiny --webiny-source-table webiny-1234567 --webiny-tenant root --write
+s3te migrate --env test --enable-webiny --webiny-source-table webiny-test-1234567 --write
 ```
 
 Optionen:
@@ -329,6 +330,7 @@ Optionen:
 - `--to <configVersion>`
 - `--dry-run`
 - `--write`
+- `--env <name>`
 - `--enable-webiny`
 - `--disable-webiny`
 - `--webiny-source-table <table>`
@@ -338,7 +340,7 @@ Optionen:
 Pflichtverhalten:
 
 1. erkennt fehlende oder alte `configVersion`
-2. kann optionale Retrofit-Aenderungen wie das nachtraegliche Aktivieren von Webiny in die Projektkonfiguration schreiben
+2. kann optionale Retrofit-Aenderungen wie das nachtraegliche Aktivieren von Webiny global oder fuer ein einzelnes Environment in die Projektkonfiguration schreiben
 3. schreibt nie ungefragt in Projektdateien ohne `--write`
 4. gibt nachvollziehbare Migrationshinweise aus
 

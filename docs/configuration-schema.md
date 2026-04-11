@@ -73,6 +73,7 @@ Root
 - `mirrorTableName`: `{stackPrefix}_s3te_content_{project}`
 - `relevantModels`: `["staticContent", "staticCodeContent"]`
 - `tenant`: nicht gesetzt
+- `environments.<env>` kann diese Werte pro Environment ueberschreiben
 
 ## Typregeln
 
@@ -159,6 +160,13 @@ Root
   mirrorTableName?: string;
   tenant?: string;
   relevantModels?: string[];
+  environments?: Record<string, {
+    enabled?: boolean;
+    sourceTableName?: string;
+    mirrorTableName?: string;
+    tenant?: string;
+    relevantModels?: string[];
+  }>;
 }
 ```
 
@@ -175,6 +183,7 @@ Root
 9. Dateipfade muessen innerhalb des Projekts bleiben und duerfen kein `..` enthaelten.
 10. `webinyLocale` ist empfohlen, wenn S3TE-Sprachkeys und Webiny-Locale-Codes nicht identisch sind.
 11. `tenant` ist empfohlen, wenn dieselbe Webiny-Installation mehrere Tenants hostet.
+12. `integrations.webiny.environments.<env>` darf nur vorhandene Environments referenzieren.
 
 ## Validierungsfehler
 

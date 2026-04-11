@@ -243,12 +243,12 @@ export async function deployAwsProject({
 }) {
   const runtimeConfig = buildEnvironmentRuntimeConfig(config, environment);
   const requestedFeatureSet = new Set(features);
-  const featureSet = new Set(resolveRequestedFeatures(config, features));
+  const featureSet = new Set(resolveRequestedFeatures(config, features, environment));
   const stackName = resolveStackName(config, environment);
   const tempStackName = temporaryStackName(stackName);
   const runtimeManifestPath = path.join(projectDir, packageDir ?? path.join("offline", "IAAS", "package", environment), "runtime-manifest.json");
 
-  if (requestedFeatureSet.has("webiny") && !config.integrations.webiny.enabled) {
+  if (requestedFeatureSet.has("webiny") && !runtimeConfig.integrations.webiny.enabled) {
     throw new S3teError("ADAPTER_ERROR", "Feature webiny was requested but is not enabled in s3te.config.json.");
   }
 

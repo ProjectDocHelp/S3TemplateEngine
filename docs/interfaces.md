@@ -85,6 +85,13 @@ export interface IntegrationsConfig {
     mirrorTableName?: string;
     tenant?: string;
     relevantModels?: string[];
+    environments?: Record<string, {
+      enabled?: boolean;
+      sourceTableName?: string;
+      mirrorTableName?: string;
+      tenant?: string;
+      relevantModels?: string[];
+    }>;
   };
 }
 ```
@@ -168,6 +175,13 @@ export interface ResolvedIntegrationsConfig {
     mirrorTableName: string;
     tenant?: string;
     relevantModels: string[];
+    environments: Record<string, {
+      enabled?: boolean;
+      sourceTableName?: string;
+      mirrorTableName?: string;
+      tenant?: string;
+      relevantModels?: string[];
+    }>;
   };
 }
 ```

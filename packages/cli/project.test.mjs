@@ -41,6 +41,56 @@ test("migrateProject can retrofit webiny onto an existing S3TE config", async ()
   assert.deepEqual(migration.config.integrations.webiny.relevantModels, ["staticContent", "staticCodeContent", "article"]);
 });
 
+test("migrateProject can configure webiny per environment", async () => {
+  const migration = await migrateProject("s3te.config.json", {
+    project: {
+      name: "mysite"
+    },
+    environments: {
+      test: {
+        awsRegion: "eu-central-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/test"
+      },
+      prod: {
+        awsRegion: "eu-central-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/prod"
+      }
+    },
+    variants: {
+      website: {
+        defaultLanguage: "en",
+        languages: {
+          en: {
+            baseUrl: "example.com",
+            cloudFrontAliases: ["example.com"]
+          }
+        }
+      }
+    },
+    integrations: {
+      webiny: {
+        enabled: true,
+        sourceTableName: "webiny-live",
+        tenant: "root"
+      }
+    }
+  }, {
+    environment: "test",
+    enableWebiny: true,
+    webinySourceTable: "webiny-test",
+    webinyTenant: "preview",
+    webinyModels: ["article"]
+  });
+
+  assert.equal(migration.config.integrations.webiny.enabled, true);
+  assert.equal(migration.config.integrations.webiny.sourceTableName, "webiny-live");
+  assert.equal(migration.config.integrations.webiny.tenant, "root");
+  assert.equal(migration.config.integrations.webiny.environments.test.enabled, true);
+  assert.equal(migration.config.integrations.webiny.environments.test.sourceTableName, "webiny-test");
+  assert.equal(migration.config.integrations.webiny.environments.test.tenant, "preview");
+  assert.deepEqual(migration.config.integrations.webiny.environments.test.relevantModels, ["staticContent", "staticCodeContent", "article"]);
+});
+
 test("scaffoldProject merges an existing npm-generated package.json", async (context) => {
   const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "s3te-init-"));
   context.after(async () => {

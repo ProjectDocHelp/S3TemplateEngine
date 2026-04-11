@@ -1,799 +1,442 @@
 # S3TemplateEngine
-S3TemplateEngine is a lightweight template engine for AWS serverless computing, helping you create AWS S3 / AWS Cloudfront hosted websites. It optionally integrates Webiny.
+
+S3TemplateEngine is a lightweight serverless template engine for people who want to keep writing HTML and still publish through AWS. You write templates and assets, S3TE renders and publishes the static result.
+
+This README is the user guide for the rewrite generation. The deeper implementation specs still live in [`docs/`](./docs/), but this file is intentionally written for users first.
 
 ## Table of Contents
-1. [Motivation](#Motivation)
-2. [Concept](#Concept)
-3. [Support](#Support)
-4. [Installation](#Installation)
-5. [Useage](#Useage)
-6. [Commands](#Commands)
-7. [Optional - automated testing with JEST](#Optional---automated-testing-with-JEST)
-8. [Optional - page variations - e.g. website and web-app](#Optional---page-variations---e.g.-website-and-web-app)
-    1. [Concept of page variations](#Concept-of-page-variations)
-    2. [Set-Up of page variations](#Set-Up-of-page-variations)
-9. [Optional - Multi language pages](#Optional---Multi-language-pages)
-    1. [Concept of multi language pages](#Concept-of-multi-language-pages)
-    2. [Set-Up op multi language pages](#Set-Up-of-multi-language-pages)
-    3. [Commands of multi language pages](#Commands-of-multi-language-pages)
-10. [Optional - Webiny integration](#Optional---Webiny-integration)
-    1. [Concept of optional Webiny extension](#Concept-of-optional-Webiny-extension)
-    2. [Installation of optional Webiny extension](#Installation-of-optional-Webiny-extension)
-    3. [Commands of optional Webiny extension](#Commands-of-optional-Webiny-extension)
-11. [Optional - Webiny multi language pages](#Optional---Webiny-multi-language-pages)
-    1. [Concept of Webiny multi language pages](#Concept-of-Webiny-multi-language-pages)
-    2. [Using multi language in Webiny](#Using-multi-language-in-Webiny)
+
+1. [Motivation](#motivation)
+2. [Support](#support)
+3. [Concept](#concept)
+4. [Installation (AWS)](#installation-aws)
+5. [Installation (VSCode)](#installation-vscode)
+6. [Installation (S3TE)](#installation-s3te)
+7. [Usage](#usage)
+8. [Optional: Webiny CMS](#optional-webiny-cms)
 
 ## Motivation
-AWS S3 and AWS Cloudfront offer a great platform to publish websites and web apps at a low cost. However, you need to create static HTML files elsewhere, and getting everything up and running can be a pain without a decent CMS.
 
-**This project is for you, if** you want to manually create HTML and benefit from low-cost serverless computing but still want to:
- * Reuse code snippets (like header or navigation)
- * Use a CMS for updating your content
- * Automatically create pages dynamically (like an individual page for each article you put in a system, rather than an SEO unfriendly AJAX load of content on a generic page)
- * Have a pipeline that optimizes/minifies your code output
+AWS S3 and CloudFront are a great platform for websites: cheap, fast and low-maintenance. The annoying part usually starts before hosting. You still need reusable HTML, a safe deployment flow, and maybe a way for editors to maintain content without turning your project into a full framework.
+
+**S3TemplateEngine is for you if** you want to keep writing HTML by hand, but still want to:
+
+- reuse snippets like headers, navigation and footer blocks
+- generate many pages from one template
+- publish multiple languages or variants from one project
+- keep AWS hosting simple and low-cost
+- optionally let editors maintain content in Webiny
+- deploy without hand-editing Lambda settings or uploading ZIP files yourself
 
 ## Support
-If you want to support this project by buying me a tea (I'm not into coffee ;-) ), feel free: https://ko-fi.com/hokcomics
-[![61e11d430afb112ea33c3aa5_Button-1](https://user-images.githubusercontent.com/100029932/174646264-edec5c8c-420b-4e54-88a7-a8dd9871ff1e.png)](https://ko-fi.com/hokcomics)
 
-If you need support, found a bug or want to donate a pull request, feel free to contact me via github.
+If S3TE saves you time and you want to buy me a tea, you can do that here:
+
+[![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/hokcomics)
+
+If you need help, found a bug, or want to contribute, open an issue or pull request on GitHub.
 
 ## Concept
-S3TemplateEngine uses serverless technologies (S3, Lambda, DynamoDB, Cloudformation) to provide a straightforward but powerful template language. 
 
-All you have to do is follow the installation paragraph, and you can write your HTML-based templates, put them into a specific S3 bucket and see the magic happen.
+S3TE keeps one simple promise: you write source templates, S3TE turns them into static files, AWS serves the result.
 
-![Architecture](https://user-images.githubusercontent.com/100029932/174443152-b16c98fc-f2f2-420e-9f5b-a6ea7a861acd.png)
+![S3TE overview](https://user-images.githubusercontent.com/100029932/174443152-b16c98fc-f2f2-420e-9f5b-a6ea7a861acd.png)
 
-## Installation
 <details>
-  <summary>Download the github repository.</summary>
+  <summary>What is the difference between the code bucket and the website bucket?</summary>
 
-Use your preferred way to pull the project, or (if you are not that experienced with git), do it manually:
+The code bucket receives your source project files: `.html`, `.part`, CSS, JavaScript, images and everything else you deploy from your project.
 
-   * Go to the project github page ( https://github.com/ProjectDocHelp/S3TemplateEngine )
-
-   * Right Click on "S3TemplateEngine.json" and choose "save link as"
-   * Download the file ( __Hint: this file is refered as "*S3TemaplateEngine.json*" later on__ )
-   
-   * Click on "S3"   
-   * Right Click on the files inside and choose "save link as"
-   * Download the file ( __Hint: this file is refered as "* files inside the s3 folder*" later on__ )
+The website bucket contains the finished result that visitors actually receive through CloudFront. That split is what makes incremental rendering, generated pages and safe re-deploys possible.
 
 </details>
-<details>
-  <summary>Create an S3 bucket and upload the content of the folder "s3" (multiple zip files) into it.</summary>
-  
-   * Navigate to your S3 console. At the time this document was created, the link is https://s3.console.aws.amazon.com/s3/buckets 
-   * Choose your region in the top right of the window.
-   * Click on "Create bucket"
-   * Enter a name for your bucket, like "mywebsite-temp" ( __Hint: this name is refered as "*S3LambdaBucket*" later on__ )
-   * Click on "Create bucket"
-   * Click on the "*S3LambdaBucket*" to open it
-   * Click on Upload
-   * Click on "Add files" and choose the files inside the "s3" folder you downloaded from GitHub earlier ( __Hint: just the files, *NOT* the folder__ )
-   * Click on Upload
-  
-</details>
-<details>
-  <summary>Connect your domain in AWS Route53 and create an SSL certificate with the AWS Certificate Manager ("www." and "" ).</summary>
-  
-   * This part is highly individual and not directly connected to the S3TemplateEngine project. To learn about this topic, refer to the AWS documentation ( https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-configuring.html )
-   * It must cover at least no-subdomain and www-subdomain (e. g. "mydomain.com" and "www.mydomain.com")
-</details>
-<details>
-  <summary>Execute the "S3TemaplateEngine.json" in CloudFormation.</summary>
 
-   * Cretae an AWS account or sign in into an existing one
-   * In the AWS console, make sure you are on target region (**S3TemplateEngine is currently only working within a single region**)
-   * go to "CloudFormation"
-     * Click on "Create Stack"
-     * Select "Template is ready" and "Upload a template file"
-     * Click on "choose file" and select "S3TemaplateEngine.json"
-     * Click on "Next"
-     * Fill out Stack Name and Parameters
-     * Click "Next"
-     * Check "I acknowledge that AWS CloudFormation might create IAM resources."
-     * Check "I acknowledge that AWS CloudFormation might create IAM resources with custom names."
-     * Check "I acknowledge that AWS CloudFormation might require the following capability: CAPABILITY_AUTO_EXPAND"
-     * Click "Create Stack"
-</details>
 <details>
-  <summary>Connect your Route53 domain to the CloundFront that was created.</summary>
-  
-   * In the AWS console, open Route53
-   * Navigate to your hosted zone
-   * Generate record "empty" "A"
-     * Click on "Create record"
-     * leave the box before your doamin name empty
-     * choose "A" as record type 
-     * Check "Alias" and choose "Alias to CloudFront distribution"
-     * Choose the distribution that was created earlier (by CloudFormation)
-   * Click "Add another record" and repeat the same for "empty" "AAAA"
-   * Click "Add another record" and repeat the same for "www" "A"
-   * Click "Add another record" and repeat the same for "www" "AAAA"
-   * Click on Create records
-</details>
-<details>
-  <summary>Delete the S3 bucket you created in the second step.</summary>
-  
-   * Navigate to your S3 console. At the time this document was created, the link is https://s3.console.aws.amazon.com/s3/buckets 
-   * Click on the radiob utton in front of the "*S3LambdaBucket*" you created in the second step of this manual, to select it
-   * Click on "Empty"
-   * Write "permanently delete" in the verification tetx field and click "Empty"
-   * Click on "Exit"
-   * Click on "Delete"
-   * Write the name of your "*S3LambdaBucket*" in the verification text field and click "Delete bucket"
+  <summary>What happens when I deploy?</summary>
+
+`s3te deploy` validates the project, packages the AWS runtime, creates or updates one persistent CloudFormation environment stack, creates one temporary CloudFormation deploy stack for packaging artifacts, synchronizes your current source files into the code bucket, and removes the temporary stack again after the real deploy run.
+
+The persistent environment stack contains the long-lived AWS resources such as buckets, Lambda functions, DynamoDB tables, CloudFront distributions and the runtime manifest parameter. The temporary deploy stack exists only so CloudFormation can consume the packaged Lambda artifacts cleanly.
+
 </details>
 
-## Useage
-Just put your template (usual website files, html with the additional commands shown below) in the "prod-website-code-\<your page name\>" s3 bucket. The system will process all files with the suffix .htm, .hmtl, .part and just move the other file suffixes unchanged.  
+## Installation (AWS)
 
-## Commands
-Inside your .html and .part files you can use the following tags:
+This section is only about the AWS things you need before you touch S3TE. The actual click-by-click screens are best left to the official AWS documentation, because the console changes over time. The goal here is to tell you exactly what S3TE needs from AWS, why it needs it, and which official page gets you there.
+
 <details>
-  <summary> &lt;part&gt; - Reusing code from other files</summary>
- 
-### Action
-Renders a certain code only, if a condition is met. Currently the only available condition is the environment. This is handy, if you want to have different "robots" meta tags for your produciton environment, than for dev and stage.
-### Syntax
-```html
-<part>*name*</part>
+  <summary>What you need before your first S3TE deploy</summary>
+
+| Item | Why S3TE needs it | Official guide |
+| --- | --- | --- |
+| AWS account | S3TE deploys into your own AWS account. | [Create an AWS account](https://portal.aws.amazon.com/billing/signup) |
+| Daily-work AWS access | `s3te deploy` needs credentials that can create CloudFormation stacks and related resources. | [Create an IAM user](https://docs.aws.amazon.com/console/iam/add-users), [Manage access keys](https://docs.aws.amazon.com/IAM/latest/UserGuide/access-keys-admin-managed.html) |
+| AWS CLI v2 | The S3TE CLI shells out to the official `aws` CLI. | [Install AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html), [Get started with AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html) |
+| Domain name you control | CloudFront and TLS only make sense for domains you can point to AWS. | Use your registrar of choice |
+| ACM certificate in `us-east-1` | CloudFront requires its public certificate in `us-east-1`. | [Public certificates in ACM](https://docs.aws.amazon.com/acm/latest/userguide/acm-public-certificates.html) |
+| Optional Route53 hosted zone | Needed only if S3TE should create DNS alias records automatically. | [Create a public hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/CreatingHostedZone.html) |
+
+</details>
+
+<details>
+  <summary>Recommended AWS order for first-time users</summary>
+
+1. Create the AWS account.
+2. Stop using the root user for daily work.
+3. Create one deployment identity for yourself.
+4. Install AWS CLI v2 locally.
+5. Run `aws configure` and verify it with `aws sts get-caller-identity`.
+6. Request the ACM certificate in `us-east-1`.
+7. If you want automatic DNS records, create or locate the Route53 hosted zone.
+
+For a first personal setup, the easiest route is usually one IAM user with console access and access keys. If you already work with AWS Identity Center or another federated login, that is fine too. S3TE uses the standard AWS credential chain.
+
+</details>
+
+## Installation (VSCode)
+
+This section is only about the local editing experience. S3TE does not require VSCode, but VSCode is the reference editor workflow and the easiest path for most users.
+
+<details>
+  <summary>Install the local tools you need</summary>
+
+| Tool | Why you want it | Official guide |
+| --- | --- | --- |
+| Visual Studio Code | Comfortable editor with integrated terminal and extension support. | [VS Code setup overview](https://code.visualstudio.com/docs/setup/setup-overview), [Get started with VS Code](https://code.visualstudio.com/docs/getstarted/getting-started) |
+| Node.js 20 or newer | Required for the S3TE CLI and local rendering. | [Download Node.js](https://nodejs.org/en/download) |
+
+</details>
+
+<details>
+  <summary>What to verify before you continue</summary>
+
+Open VSCode, open the integrated terminal, and run:
+
+```bash
+node --version
+npm --version
 ```
-Whereas *name* is a filename or path/filename leading to a .part file.
-### Example
-```html
-    <head>
-        <part>head.part</part>
-    </head>
+
+If both commands print a version number, your local machine is ready for S3TE.
+
+</details>
+
+## Installation (S3TE)
+
+This is the S3TE-specific part. No AWS console links, no editor tutorial, just the steps that actually create and run an S3TE project.
+
+<details>
+  <summary>1. Create your project folder</summary>
+
+```bash
+mkdir mywebsite
+cd mywebsite
 ```
 
 </details>
-<details>
-  <summary> &lt;if&gt; - Only render code, if you are in a certain environment</summary>
 
-### Action
-Replaces the command with the content from another file. This is handy, if you want to reuse HTML headers or navigation.
-### Syntax
-```html
-<part>*json*</part>
+<details>
+  <summary>2. Scaffold the project once</summary>
+
+If `@projectdochelp/s3te` is already published on npm, scaffold the project once with a temporary `npx` run:
+
+```bash
+npx --package @projectdochelp/s3te s3te init --project-name mywebsite --base-url example.com
 ```
-Whereas *json* is a is a json object with the following attributes:
+
+That command only works after a real npm publish. A GitHub repository on its own is not enough.
+
+If you are still working from this repository before the first npm publish, run the CLI directly from the repo root instead:
+
+```bash
+node packages/cli/bin/s3te.mjs init --dir ./mywebsite --project-name mywebsite --base-url example.com
+```
+
+</details>
+
+<details>
+  <summary>3. What the scaffold creates</summary>
+
+The default scaffold creates:
+
+```text
+mywebsite/
+  package.json
+  s3te.config.json
+  app/
+    part/
+      head.part
+    website/
+      index.html
+  offline/
+    content/
+      en.json
+    schemas/
+      s3te.config.schema.json
+    tests/
+      project.test.mjs
+  .vscode/
+    extensions.json
+```
+
+</details>
+
+<details>
+  <summary>4. Install S3TE locally in the project</summary>
+
+```bash
+npm install --save-dev @projectdochelp/s3te
+npx s3te --help
+```
+
+This is the recommended everyday setup. From this point on, you run the project-local version with `npx s3te ...`.
+
+If you want to use the built-in test helpers in your own project tests, import them from the same package via `@projectdochelp/s3te/testkit`.
+
+</details>
+
+<details>
+  <summary>5. Fill in the real AWS values in <code>s3te.config.json</code></summary>
+
+The most important fields for a first deployment are:
+
 ```json
 {
-  "env": "match the current environment dev|stage|prod",
-  "file": "match the rendered filename e.g. index.html",
-  "not": true|false - if true invert result of other machtes,
-  "template": "an HTML template, that will either appear or not appear"
+  "environments": {
+    "dev": {
+      "awsRegion": "eu-central-1",
+      "stackPrefix": "DEV",
+      "certificateArn": "arn:aws:acm:us-east-1:123456789012:certificate/replace-me",
+      "route53HostedZoneId": "Z1234567890"
+    }
+  },
+  "variants": {
+    "website": {
+      "languages": {
+        "en": {
+          "baseUrl": "example.com",
+          "cloudFrontAliases": ["example.com", "www.example.com"]
+        }
+      }
+    }
+  }
 }
 ```
-Whereas *env*, *file* and *not* are optional (but the whole command only makes sense, if you use at least one of them).
-### Example
+
+`route53HostedZoneId` is optional. Leave it out if you want to manage DNS yourself.
+
+</details>
+
+<details>
+  <summary>6. Run the first local check and deploy</summary>
+
+```bash
+npx s3te validate
+npx s3te render --env dev
+npx s3te test
+npx s3te doctor --env dev
+npx s3te deploy --env dev
+```
+
+`render` writes the local preview into `offline/S3TELocal/preview/dev/...`.
+
+`deploy` creates or updates the persistent environment stack, uses a temporary deploy stack for packaged Lambda artifacts, synchronizes the source project into the code bucket, and removes the temporary stack again when the deploy finishes.
+
+If you left `route53HostedZoneId` out of the config, the last DNS step stays manual: point your domain at the created CloudFront distribution after deploy.
+
+</details>
+
+## Usage
+
+Once the project is installed, your everyday loop is deliberately small: edit templates, validate, render locally, then deploy.
+
+### Daily Workflow
+
+<details>
+  <summary>Typical daily loop</summary>
+
+1. Edit files in `app/part/` and `app/website/`.
+2. If you use content-driven tags without Webiny, edit `offline/content/en.json` or `offline/content/items.json`.
+3. Validate and render locally.
+4. Run your tests.
+5. Deploy when the result looks right.
+
+```bash
+npx s3te validate
+npx s3te render --env dev
+npx s3te test
+npx s3te deploy --env dev
+```
+
+</details>
+
+### CLI Commands
+
+<details>
+  <summary>Command overview</summary>
+
+| Command | What it does |
+| --- | --- |
+| `s3te init` | Creates the starter project structure and base config. |
+| `s3te validate` | Checks config and template syntax without rendering outputs. |
+| `s3te render --env <name>` | Renders locally into `offline/S3TELocal/preview/<env>/...`. |
+| `s3te test` | Runs the project tests from `offline/tests/`. |
+| `s3te package --env <name>` | Builds the AWS deployment artifacts without deploying them yet. |
+| `s3te doctor --env <name>` | Checks local machine and AWS access before deploy. |
+| `s3te deploy --env <name>` | Deploys or updates the AWS environment and syncs source files. |
+| `s3te migrate` | Updates older project configs and can retrofit Webiny into an existing S3TE project. |
+
+</details>
+
+### Template Commands
+
+These are the core S3TE commands you will use even in a plain HTML-only project.
+
+<details>
+  <summary><code>&lt;part&gt;</code> - reuse a partial file</summary>
+
 ```html
-    <if>{
-        "env": "dev",
-        "template": "<meta name='robots' content='noindex'><meta name='googlebot' content='noindex'>"
-      }</if>
-    <if>{
-        "env": "stage",
-        "template": "<meta name='robots' content='noindex'><meta name='googlebot' content='noindex'>"
-      }</if>      
-    <if>{
-      "env": "prod",
-      "template": "<meta name='robots' content='all'><meta name='googlebot' content='all'>"
-    }</if>
+<part>head.part</part>
 ```
 
 </details>
 
 <details>
-  <summary> &lt;fileattribute&gt; - Inserts file attributs (also Webiny items values, based on dbmultifile loop created files)</summary>
- 
-### Action
-Replaces the \<fileattribute\>-command with the current filename. Handy for generation of canonical tags.<br><br>Also works inside a \<dbmultifile\>-command: 
-### Syntax
+  <summary><code>&lt;if&gt;</code> - render inline HTML only when a condition matches</summary>
+
+```html
+<if>{
+  "env": "prod",
+  "template": "<meta name='robots' content='all'>"
+}</if>
+```
+
+</details>
+
+<details>
+  <summary><code>&lt;fileattribute&gt;</code> - print metadata of the current output file</summary>
+
 ```html
 <fileattribute>filename</fileattribute>
 ```
-Currently filename is the only command available.
-### Example
-```html
-<fileattribute>filename</fileattribute>
-```
-</details>
-
-## Optional - automated testing with JEST
-If you want to test the output source code with JEST during development, this is a littly tricky, as you will want to dio the in a "jsdom" environment, whereas the S3TE needs a node environment. Here's what to do:
-
-<details>
-  <summary>Preparation</summary>    
-
-   * Copy the "test example/S3TE" folder and its contents in the "test" folder of your project
-
-</details>
-<details>
-  <summary>Write your test</summary>
-
-   Have a look at "test example/index.test.js" it uses jest axe to test the accessibility of the source code generated by S3TE. Just write your own tests like the one outlined there and use the sHTML (s stands for "string") variable to do your checks. The magic is started here in the "beforeAll" block.
-</details>
-
-## Optional - page variations - e.g. website and web-app
-
-### Concept of page variations
-If you want to host multiple pages with similar content and/or domains but different code, S3 Template Engine has your back. A common use case is having a website and a web-app with a slightly different domain (e.g. app.your-domain.com), same CMS/Webiny objects to render and different hmtl/CSS/JavaScript code.
-
-In this setup you'll have a seperate code input bucket for each variation and of course a unique cloud front distribution for each.
-
-### Set-Up of page variations
-<details>
-  <summary>Preparation</summary>
-    
-   * If not already done, Install S3TemplateEngine, as described in the [Installation](#Installation) paragraph.
-</details>
-Do the following steps once for each additional variation. The base variant, taht'S also used if you don't configure any variants, is always called "website". If yoou need more additional variants (e.g. app and admin), you'll need to do the stuff next steps twice to end up with three different variants.
-<details>
-  <summary>Execute the "S3TemaplateEngineAdditionalVariation.json" in CloudFormation.</summary>
-
-   * Cretae an AWS account or sign in into an existing one
-   * In the AWS console, make sure you are on target region (**S3TemplateEngine is currently only working within a single region**)
-   * go to "CloudFormation"
-     * Click on "Create Stack"
-     * Select "Template is ready" and "Upload a template file"
-     * Click on "choose file" and select "S3TemaplateEngineAdditionalVariation.json"
-     * Click on "Next"
-     * Fill out Stack Name and Parameters **Be aware, that the parameters Environment and WebsiteName have to be exactly the same parameters you used when installing S3TemaplateEngine - Website URL may differ**
-     * Click "Next"
-     * Check "I acknowledge that AWS CloudFormation might create IAM resources with custom names."
-     * Click "Create Stack"
-</details>
-<details>
-  <summary>Connect your Route53 domain to the CloundFront that was created.</summary>
-  
-   * In the AWS console, open Route53
-   * Navigate to your hosted zone
-   * Generate record "empty" "A"
-     * Click on "Create record"
-     * leave the box before your doamin name empty
-     * choose "A" as record type 
-     * Check "Alias" and choose "Alias to CloudFront distribution"
-     * Choose the distribution that was created earlier (by CloudFormation)
-   * Click "Add another record" and repeat the same for "empty" "AAAA"
-   * Click "Add another record" and repeat the same for "www" "A"
-   * Click "Add another record" and repeat the same for "www" "AAAA"
-   * Click on Create records
-</details>
-The last steps have to be executed only once, at the end of your multi variant preperation:
-
-<details>
-  <summary>Tell your Lambda function 'HOK_move_file' about the buckets you created.</summary>  
-    
-   * In the AWS console, open Lambda
-   * Find "<YourEnviornment>_HOK_move_file" and click on the linked function name to open function editing
-   * Navigate to "Configuration" and "Environment variables", there click on edit
-   * Edit the value of the key "config", by adding the new variation buckets to the array   
-
-If you use multiple different variations of your content (e.g. an "app." besides a "www."), you need to add one language array for each content.
-```json
-{
-  "website":[
-    {"<countrycode>":"<s3 bucket name>"},
-    ...
-  ],
-  "<variation name>":[
-    {"<countrycode>":"<s3 bucket name>"},
-    ...
-  ],
-  ...
-}
-```
-
-If you use multiple different variations of your content (e.g. an "app." besides a "www."), you need to add one language array for each content.
-```json
-{
-  "website":[
-    {"<countrycode>":"<s3 bucket name>"},
-    {"<countrycode>":"<s3 bucket name for new lang>"},
-    ...
-  ],
-  "<variation name>":[
-    {"<countrycode>":"<s3 bucket name>"},
-    {"<countrycode>":"<s3 bucket name for new lang>"},    
-    ...
-  ],
-  ...
-}
-```
-
-e.g.
-```json
-{
-  "website":[
-    {
-      "en":
-      {
-        "bucket":"prod-website-myurl",
-        "baseurl":"mywebsite.com"
-      }
-    },
-    {
-      "de":{
-        "bucket":"prod-website-myurl-de",
-        "baseurl":"mywebsite.de"
-      }
-    }
-  ],
-  "app":[
-    {
-      "en":
-      {
-        "bucket":"prod-app-myurl",
-        "baseurl":"mywebsite.com"
-      }
-    },
-    {
-      "de":{
-        "bucket":"prod-app-myurl-de",
-        "baseurl":"mywebsite.de"
-      }
-    }
-  ]  
-}
-```
-
-It has to be entered as one liner, so it will become
-```
-{ "website":[ { "en": { "bucket":"prod-website-myurl", "baseurl":"mywebsite.com" } }, { "de":{ "bucket":"prod-website-myurl-de", "baseurl":"mywebsite.de" } } ], "app":[ { "en": { "bucket":"prod-app-myurl", "baseurl":"mywebsite.com" } }, { "de":{ "bucket":"prod-app-myurl-de", "baseurl":"mywebsite.de" } } ] }
-```
-
-
-</details>
-<details>
-  <summary>Tell your Lambda function 'HOK_render_html_files' about the buckets you created.</summary>  
-  
-   * In the AWS console, open Lambda
-   * Find "<YourEnviornment>_HOK_render_html_files" and click on the linked function name to open function editing
-   * Navigate to "Configuration" and "Environment variables", there click on edit
-   * Edit the value of the key "config" as described below and click on "save"
-
-You need to create a small JSON with your data and then enter it into the "value" field without any line breaks. It's teh same you used for 'HOK_move_file' in the last step.
 
 </details>
 
-## Optional - Multi language pages
-
-### Concept of multi language pages
-The use of multiple languages on your page is optional. However, if you want to use them, you'll need some additional preperation steps. After that you can utilize the languag specific commands, shown below. The idea of this multi language implementation is, that you'll have a different CloudFront distribution per page. This will allow you full control, what type of URL you use:  
-
-|  | Example 1 | Example 2 | Example 3 |
-| :----------- | :------------: | :------------: | ------------: |
-| EN | "mydomain.com" | "en.mydomain.com" | "mydomain.com/en" |
-| DE | "mydomain.de" | "de.mydomain.com" | "mydomain.com/de" |
-
-### Set-Up of multi language pages
 <details>
-  <summary>Preparation</summary>
-    
-   * If not already done, Install S3TemplateEngine, as described in the [Installation](#Installation) paragraph.
-</details>
-Do the following steps once for each additional language. The base language (eg. en) is part of the normal set-up. If yoou need two more languages (e.g. de and fr), you'll need to do the stuff next steps twice to end up with three different languages.
-<details>
-  <summary>Execute the "S3TemaplateEngineAdditionalLanguage.json" in CloudFormation.</summary>
+  <summary><code>&lt;lang&gt;</code> - print the current language metadata</summary>
 
-   * Cretae an AWS account or sign in into an existing one
-   * In the AWS console, make sure you are on target region (**S3TemplateEngine is currently only working within a single region**)
-   * go to "CloudFormation"
-     * Click on "Create Stack"
-     * Select "Template is ready" and "Upload a template file"
-     * Click on "choose file" and select "S3TemaplateEngineAdditionalLanguage.json"
-     * Click on "Next"
-     * Fill out Stack Name and Parameters **Be aware, that the parameters Environment and WebsiteName have to be exactly the same parameters you used when installing S3TemaplateEngine - Website URL may differ**
-     * Click "Next"
-     * Check "I acknowledge that AWS CloudFormation might create IAM resources with custom names."
-     * Click "Create Stack"
-</details>
-<details>
-  <summary>Connect your Route53 domain to the CloundFront that was created.</summary>
-  
-   * In the AWS console, open Route53
-   * Navigate to your hosted zone
-   * Generate record "empty" "A"
-     * Click on "Create record"
-     * leave the box before your doamin name empty
-     * choose "A" as record type 
-     * Check "Alias" and choose "Alias to CloudFront distribution"
-     * Choose the distribution that was created earlier (by CloudFormation)
-   * Click "Add another record" and repeat the same for "empty" "AAAA"
-   * Click "Add another record" and repeat the same for "www" "A"
-   * Click "Add another record" and repeat the same for "www" "AAAA"
-   * Click on Create records
-</details>
-The last steps have to be executed only once, at the end of your multi language preperation:
-<details>
-  <summary>Tell your Lambda function 'HOK_move_file' about the buckets you created.</summary>  
-    
-   * In the AWS console, open Lambda
-   * Find "<YourEnviornment>_HOK_move_file" and click on the linked function name to open function editing
-   * Navigate to "Configuration" and "Environment variables", there click on edit
-   * Edit the value of the key "config", by adding the new variation buckets to the array   
-
-If you use multiple different variations of your content (e.g. an "app." besides a "www."), you need to add one language array for each content.
-```json
-{
-  "website":[
-    {"<countrycode>":"<s3 bucket name>"},
-    {"<countrycode>":"<s3 bucket name for new lang>"},
-    ...
-  ]
-}
-```
-
-If you use multiple different variations of your content (e.g. an "app." besides a "www."), you need to add one language array for each content.
-```json
-{
-  "website":[
-    {"<countrycode>":"<s3 bucket name>"},
-    {"<countrycode>":"<s3 bucket name for new lang>"},
-    ...
-  ],
-  "<variation name>":[
-    {"<countrycode>":"<s3 bucket name>"},
-    {"<countrycode>":"<s3 bucket name for new lang>"},    
-    ...
-  ],
-  ...
-}
-```
-
-e.g.
-```json
-{
-  "website":[
-    {
-      "en":
-      {
-        "bucket":"prod-website-myurl",
-        "baseurl":"mywebsite.com"
-      }
-    },
-    {
-      "de":{
-        "bucket":"prod-website-myurl-de",
-        "baseurl":"mywebsite.de"
-      }
-    }
-  ],
-  "app":[
-    {
-      "en":
-      {
-        "bucket":"prod-app-myurl",
-        "baseurl":"mywebsite.com"
-      }
-    },
-    {
-      "de":{
-        "bucket":"prod-app-myurl-de",
-        "baseurl":"mywebsite.de"
-      }
-    }
-  ]  
-}
-```
-
-It has to be entered as one liner, so it will become
-```
-{ "website":[ { "en": { "bucket":"prod-website-myurl", "baseurl":"mywebsite.com" } }, { "de":{ "bucket":"prod-website-myurl-de", "baseurl":"mywebsite.de" } } ], "app":[ { "en": { "bucket":"prod-app-myurl", "baseurl":"mywebsite.com" } }, { "de":{ "bucket":"prod-app-myurl-de", "baseurl":"mywebsite.de" } } ] }
-```
-</details>
-
-<details>
-  <summary>Tell your Lambda function 'HOK_render_html_files' about the buckets you created.</summary>  
-  
-   * In the AWS console, open Lambda
-   * Find "<YourEnviornment>_HOK_render_html_files" and click on the linked function name to open function editing
-   * Navigate to "Configuration" and "Environment variables", there click on edit
-   * Edit the value of the key "config" as described below and click on "save"
-
-You need to create a small JSON with your data and then enter it into the "value" field without any line breaks. It's teh same you used for 'HOK_move_file' in the last step.
-
-</details>
-
-### Commands-of-multi-language-pages
-Inside the files you put into "website/" and "part/", you can use the following tags:
-<details>
-  <summary> &lt;lang&gt; - Printing the current pages language</summary>
-### Action
-Renders the current language. Handy for language switchers and meta data.
-### Syntax
-```html
-<lang>*command*</lang>
-```
-Whereas *command* is 2 for a 2 digit lang code (like "en", "de", "fr", ...).<br>
-Whereas *command* is baseurl for printing the language specific baseurl you defined in the set-up step.
-### Example
 ```html
 <html lang="<lang>2</lang>">
-<head>
-  <link rel='canonical' href='https://<if>{
-    "env": "dev",
-    "template": "dev."
-  }</if><if>{
-    "env": "stage",
-    "template": "stage."
-  }</if><lang>baseurl</lang><if>{
-    "file": "index.html",
-    "not": true,
-    "template": "/<fileattribute>filename</fileattribute>"
-  }</if>' />
-  ...
-</head>
+<link rel="canonical" href="https://<lang>baseurl</lang>">
 ```
+
 </details>
+
 <details>
-  <summary> &lt;switchlang&gt; - Providing different content for multiple languages</summary>
-### Action
-Renders language specific content (e.g. hardcoded text).
-### Syntax
+  <summary><code>&lt;switchlang&gt;</code> - choose inline content by language</summary>
+
 ```html
 <switchlang>
-  <*lang*>*content*<*/lang*>
-  ...
+  <de>Willkommen</de>
+  <en>Welcome</en>
 </switchlang>
 ```
-Whereas *lang* is the 2 digit lang code (like "en", "de", "fr", ...), and *content* is the content for this lang code.
-### Example
-```html
-<p>
-  <switchlang>
-    <de>Dein ultimatives Website Werkzeug</de>
-    <en>Your ultimate website tool</en>
-  </switchlang>
-</p>
+
+</details>
+
+If you also want content-driven commands such as `dbmulti` or `dbmultifile`, continue with the optional Webiny section below. The same commands can also read from local `offline/content/*.json` files when you are not using Webiny yet.
+
+## Optional: Webiny CMS
+
+You do not need Webiny to use S3TE. Start with plain HTML first. Add Webiny only when editors should maintain content in a CMS instead of editing local JSON files under `offline/content/`.
+
+The supported target for this optional path is Webiny 6.x on its standard AWS deployment model.
+
+![S3TE with Webiny](https://user-images.githubusercontent.com/100029932/174443536-7af050de-eea7-4456-81aa-a173863b6ec9.png)
+
+<details>
+  <summary>Install Webiny first by following the official guides</summary>
+
+This section assumes that S3TE is already installed and deployed. The S3TE-specific Webiny setup only starts after you already have a running Webiny 6.x installation in AWS.
+
+- [Install Webiny](https://www.webiny.com/learn/course/getting-started/installing-webiny)
+
+</details>
+
+<details>
+  <summary>Retrofit Webiny onto an existing S3TE project</summary>
+
+1. Install Webiny in AWS and finish the Webiny setup first.
+2. Find the Webiny DynamoDB table that contains the CMS entries you want S3TE to mirror.
+3. Upgrade your existing S3TE config for Webiny:
+
+```bash
+npx s3te migrate --enable-webiny --webiny-source-table webiny-1234567 --webiny-tenant root --webiny-model article --write
 ```
-</details>
 
-## Optional - Webiny integration
+`staticContent` and `staticCodeContent` are kept automatically. Add `--webiny-model` once per custom model you want S3TE to mirror.
 
-### Concept of optional Webiny extension
-S3TemplateEngine supports Webiny as an editors interface. Webiny ( https://www.webiny.com/ ), an open source serverless CMS ranging from a free version up to enterprise grade, also uses serverless technologies from AWS. We integrate it without any code change in Webiny, by accessing the published items on database level. So you it goes with a vanilla installation as well as with a highly cusomized one.  
+4. Turn on DynamoDB Streams for the Webiny source table with `NEW_AND_OLD_IMAGES`.
+5. If your S3TE language keys are not identical to your Webiny locales, add `webinyLocale` per language in `s3te.config.json`, for example `"en": { "webinyLocale": "en-US" }`.
+6. If your Webiny installation hosts multiple tenants, keep `integrations.webiny.tenant` set so S3TE only mirrors the intended tenant.
+7. Check the project again:
 
-All you have to do is to follow the installation paragraph, and you can use your Webiny generated content in your HTML-based templates.
-
-![Architecture_with_Webiny](https://user-images.githubusercontent.com/100029932/174443536-7af050de-eea7-4456-81aa-a173863b6ec9.png)
-
-### Installation of optional Webiny extension
-<details>
-  <summary>Intall S3TemplateEngine.</summary>
-
-   * Install S3TemplateEngine, as described in the [Installation](#Installation) paragraph.
-</details>
-<details>
-  <summary>Intall Webiny.</summary>
-
-   * Install Webiny, as described in the Webiny documentation. ( https://www.webiny.com/docs/get-started/install-webiny )
-</details>
-<details>
-  <summary>Prepare Webiny.</summary>
-
-   * Log in and create the models you need in the Webiny backend. The names of these models will be needed for the following steps.
-   * **Hint: If you want to add or remove a model after installation, you can do so by manually editing the of the "relevant_webiny_models" environment variable of the "<ENV>_HOK_transfer_published_item" lambda function.**
-   * In addition, create the following two models:
-     * model name "staticCodeContent", containing
-       * a text field called "contentid" with the restriction "unique"
-       * a long text field "content"
-         * This model will be used for specific content you only have one instance of, that is source code, like a tracking pixel   
-         * It will be available via it's "contentid", if you want to hand these over to editors, I recommend prepareing the available contentid values as predefined value
-     * model name "staticContent", containing
-       * a text field called "contentid" with the restriction "unique"
-       * a rich text field "content"
-         * This one will be used for specific content you only have one instance of, like the "about us" page
-         * It will be available via it's "contentid", if you want to hand these over to editors, I recommend prepareing the available contentid values as predefined value
-</details>
-<details>
-  <summary>Download the github repository.</summary>
-    If you pulled the project in the S3TemplateEngine installation: fine, else do it manually:
-
-   * Go to the project github page ( https://github.com/ProjectDocHelp/S3TemplateEngine )
-
-   * Right Click on "S3TemplateEngineWebiny.json" and choose "save link as"
-   * Download the file ( __Hint: this file is refered as "*S3TemaplateEngineWebiny.json*" later on__ )
-   
-   * Click on "s3Webiny"   
-   * Right Click on the file inside and choose "save link as"
-   * Download the file ( __Hint: this file is refered as "* files inside the s3Webiny folder*" later on__ )
-
-</details>
-<details>
-  <summary>Create an S3 bucket and upload the content of the folder "s3Webiny" (multiple zip files) into it.</summary>
-  
-   * Navigate to your S3 console. At the time this document was created, the link is https://s3.console.aws.amazon.com/s3/buckets 
-   * Choose your region in the top right of the window.
-   * Click on "Create bucket"
-   * Enter a name for your bucket, like "mywebsite-temp" ( __Hint: this name is refered as "*S3LambdaBucket*" later on__ )
-   * Click on "Create bucket"
-   * Click on the "*S3LambdaBucket*" to open it
-   * Click on Upload
-   * Click on "Add files" and choose the files inside the "s3Webiny" folder you downloaded from GitHub earlier ( __Hint: just the files, *NOT* the folder__ )
-   * Click on Upload
-  
-</details>
-<details>
-  <summary>Execute the "S3TemaplateEngineWebiny.json" in CloudFormation.</summary>
-
-   * Cretae an AWS account or sign in into an existing one
-   * In the AWS console, make sure you are on target region (**S3TemplateEngine is currently only working within a single region**)
-   * go to "CloudFormation"
-     * Click on "Create Stack"
-     * Select "Template is ready" and "Upload a template file"
-     * Click on "choose file" and select "S3TemaplateEngineWebiny.json"
-     * Click on "Next"
-     * Fill out Stack Name and Parameters **Be aware, that the parameters Environment and WebsiteName have to be exactly the same parameters you used when installing S3TemaplateEngine**
-     * Click "Next"
-     * Check "I acknowledge that AWS CloudFormation might create IAM resources with custom names."
-     * Click "Create Stack"
-</details>
-<details>
-  <summary>Connect the DynamoDB stream of your webiny installation with the receiving lambda function of S3TemplateEngine.</summary>
-    
-   * Navigate to your DynamoDB console. At the time this document was created, the link is https://console.aws.amazon.com/dynamodbv2/home
-   * Make sure you are in the correct region
-   * Clik on "tables" 
-   * Click on your Webiny table (usually it's named "webiny-<7 digit code>")    
-   * In “Export and Streams” -> “DynamoDB stream details” click on "Turn On"
-   * Choose “New and old images” and click on “Turn on stream”
-   * In “DynamoDB stream details” click on “Create trigger”
-   * Choose “PROD_HOK_transfer_published_item” (or “DEV_HOK_transfer_published_item” or similar, depending on your enviroment). Choose a Batch size of 1 and click “Create trigger”
-</details>
-<details>
-  <summary>Connect the DynamoDB stream of your content mirror tables with the receiving lambda function of S3TemplateEngine.</summary>
-    
-   * Navigate to your DynamoDB console. At the time this document was created, the link is https://console.aws.amazon.com/dynamodbv2/home
-   * Make sure you are in the correct region
-   * Clik on "tables" 
-   * Click on your Webiny table (usually it's named "<environment>_PROD_WebsiteContentFromWebiny_<your page name>")
-   * In “DynamoDB stream details” click on “Create trigger”
-   * Choose “PROD_HOK_render_html_files” (or “DEV_HOK_render_html_files” or similar, depending on your enviroment). Choose a Batch size of 1 and click “Create trigger”
-
-</details>      
-<details>
-  <summary>Delete the S3 bucket you created in the second step.</summary>
-  
-   * Navigate to your S3 console. At the time this document was created, the link is https://s3.console.aws.amazon.com/s3/buckets 
-   * Click on the radiob utton in front of the "*S3LambdaBucket*" you created in the second step of this manual, to select it
-   * Click on "Empty"
-   * Write "permanently delete" in the verification tetx field and click "Empty"
-   * Click on "Exit"
-   * Click on "Delete"
-   * Write the name of your "*S3LambdaBucket*" in the verification tetx field and click "Delete bucket"
-</details>
-
-### Commands of optional Webiny extension
-Inside the files you put into "website/" and "part/", you can use the following tags:
-<details>
-  <summary> &lt;dbpart&gt; - Inserting code or content maintained in Webiny</summary>
- 
-### Action
-Replaces the command with the content from an Webiny maintained element. This is handy, if you want to give an editor access to static elements like a privacy statement or a tracking tag.
-### Syntax
-```html
-<dbpart>*name*</dbpart>
+```bash
+npx s3te doctor --env prod
 ```
-Whereas *name* is the "contentid" of a Webiny "Static Contents" or "Static Code Contents" element.
-### Example
-```html
-    <body>
-        <dbpart>impressum</dbpart>
-    </body>
+
+8. Redeploy the existing S3TE environment:
+
+```bash
+npx s3te deploy --env prod
 ```
+
+That deploy updates the existing environment stack and adds the Webiny mirror resources to it. You do not need a fresh S3TE installation.
+
 </details>
+
 <details>
-  <summary> &lt;dbmulti&gt; - Inserting multiple Webiny items in one file</summary>
- 
-### Action
-Replaces the command with a defined HTML template multiple times. Exactly once for each entry in the published Webiny content, matching the filter criteria. Handy for cretaing an overview page of articles.
-### Syntax
-```html
-<dbmulti>*json*</dbmulti>
-```
-Whereas *json* is a json object with the following attributes, attribute "limit" is optional:
+  <summary>What the migration command changes</summary>
+
+The migration command writes or updates the `integrations.webiny` block in `s3te.config.json`. A typical result looks like this:
+
+Example config block:
+
 ```json
-{
-  "filter":[
-    {"AttributeName":{"DynamoDBType":"AttributeContent"}},
-    ...
-  ],
-  "filtertype": 'contains', if the query checks a multi select webiny entry
-  "limit": max number of elements to return,
-  "template":"an HTML template, that will probably contain <dbitem> elements"
+"integrations": {
+  "webiny": {
+    "enabled": true,
+    "sourceTableName": "webiny-1234567",
+    "mirrorTableName": "{stackPrefix}_s3te_content_{project}",
+    "tenant": "root",
+    "relevantModels": ["article", "staticContent", "staticCodeContent"]
+  }
 }
 ```
-__Hint:__ You can sort entries by adding a number field named "order" to your Webiny model. After that edit your entries: smaller numbers come first, stuff with empty "order" fields are rendered at the end.
 
-### Example
-```html
-<dbmulti>{
-    "filter":[{"forWebsite":{"BOOL":true}}],
-    "limit":3,
-    "template":"<a href='artikeldetail-<dbitem>id</dbitem>.html'><h2><dbitem>headline</dbitem></h2><div class='content'><dbitem>readingtime</dbitem>&nbsp;min</div></a>"
-}</dbmulti>
-```
-</details>
-<details>
-  <summary> &lt;dbmultifile&gt; - Create a file for each Webiny item matching a filter</summary>
+For localized Webiny projects, the language block can also carry the mapping explicitly:
 
-### Action
-Creates multiple files out of one template file, by using one unqiue database attribute as suffix to the created filenames. Handy for generating individual pages for articles.
-### Syntax
-Must be first line of the tmeplate frile (even before \<!Doctype html\>)
-```html
-<dbmultifile>*json*</dbmultifile>
-```
-Whereas *json* is a json object with the following attributes:
 ```json
-{
-  "filenamesuffix":"Dynamo DB field (muust be unique)",
-  "filter":[
-    {"AttributeName":{"DynamoDBType":"AttributeContent"}},
-    ...
-  ]
+"languages": {
+  "en": {
+    "baseUrl": "example.com",
+    "cloudFrontAliases": ["example.com"],
+    "webinyLocale": "en-US"
+  }
 }
 ```
-Whereas *fieldname* is the name of an attribute (column) from the DynamoDB
 
-### Example
-```html
-<dbmultifile>{
-    "filenamesuffix":"id",
-    "filter":[
-      {"__typename":{"S":"artikel"}}
-    ]
-  }</dbmultifile>
-```
-</details>
-<details>
-  <summary> &lt;dbitem&gt; - Inserts Webiny items values (used inside a dbmulti or dbmultifile loop)</summary>
- 
-### Action
-Inside a \<dbmulti\>-command or \<dbmultifile\>-command: Replaces the \<dbitem\>-command with the content of a Webiny field of the current element.
-### Syntax
-```html
-<dbitem>*fieldname*</dbitem>
-```
-Whereas *fieldname* is the name of an attribute (column) from the DynamoDB.
-### Example
-```html
-<dbitem>headline</dbitem>
-```
 </details>
 
-## Optional - Webiny multi language pages
-
-### Concept of Webiny multi language pages
-S3TemplateEngine differs from the standard Webiny way to implement multi language by intention. 
-
-**Webiny usually allows you to define different data models for each language.**
-This has some use cases and you can tweak S3TemplateEngine to work with this as well. (If you want to do this, please contact me: it has been done before, but it is a lillte more complicated and not part of the open source project.) But I consider these usecases as edge cases, so I decided to go a different way with S3TemplateEngine.
-
-**S3TemplateEngine works differently**
-I strongly belive, that the best user experience for content editors is having the different locales side by side. Therefore we'll use ONE Webiny locale and one data model, inserting different fields for the different languages.
-
-### Using multi language in Webiny
 <details>
-  <summary>Intall S3TemplateEngine, Multi Language and Webiny.</summary>
-    
-   * Install S3TemplateEngine, as described in the [Installation](#Installation) paragraph.
-   * Install S3TemplateEngine multi language extension, as described in the [Set-Up op multi language pages](#Set-Up-of-multi-language-pages) paragraph.
-      * Install S3TemplateEngine Webiny extension, as described in the [Installation of optional Webiny extension](#Installation-of-optional-Webiny-extension) paragraph.
-</details>
-<details>
-  <summary>Add fields for you additonal locales in all data models.</summary>
-    
-   * Go to your Webiny admin interface
-   * Navigate to Modles -> staticContent and click the pen to edit the model
-You'll see a field "contentid" that's the key for your data item. And a field "content", that is the fallback content of your item. It will be rendered every time no language specific field is part of the model. For the most of us, it will be benificial to here put the english content.
-   * To add a language, add another field like "content" (in this case a "rich text input" field) and name it "content<lang>". e.g. "contentde". **I'm talking about the "Field ID" here, not the label. Exyample: You can lable the content field with English and the contentde field with German, if oyu want.**
-You can add as many languages as you like, but be aware, that you'll need to fill these fields for all content elements. An empty field will result in an empty string. The fallback functionality just works, if a whole language is not set up in the model.
-   * Click on "Save"   
-   * Repeat this for "staticCodeContent" and all custom models you created.
+  <summary>Content template commands</summary>
+
+These commands are useful both with Webiny and with local JSON content files:
+
+- `dbpart`
+- `dbmulti`
+- `dbmultifile`
+- `dbitem`
+- `dbmultifileitem`
+
 </details>

@@ -1,0 +1,32 @@
+{
+  "$schema": "./offline/schemas/s3te.config.schema.json",
+  "configVersion": 1,
+  "project": {
+    "name": "minimal-site"
+  },
+  "rendering": {
+    "outputDir": "offline/S3TELocal/preview"
+  },
+  "environments": {
+    "dev": {
+      "awsRegion": "eu-central-1",
+      "stackPrefix": "DEV",
+      "certificateArn": "arn:aws:acm:us-east-1:123456789012:certificate/replace-me"
+    }
+  },
+  "variants": {
+    "website": {
+      "sourceDir": "app/website",
+      "partDir": "app/part",
+      "defaultLanguage": "en",
+      "languages": {
+        "en": {
+          "baseUrl": "example.com",
+          "cloudFrontAliases": [
+            "example.com"
+          ]
+        }
+      }
+    }
+  }
+}

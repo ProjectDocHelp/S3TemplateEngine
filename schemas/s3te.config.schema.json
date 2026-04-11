@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "S3TemplateEngine Project Config",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project", "environments", "variants"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "configVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "displayName": {
+          "type": "string"
+        }
+      }
+    },
+    "environments": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["awsRegion", "certificateArn"],
+        "properties": {
+          "awsRegion": { "type": "string" },
+          "stackPrefix": { "type": "string" },
+          "certificateArn": { "type": "string" },
+          "route53HostedZoneId": { "type": "string" }
+        }
+      }
+    },
+    "variants": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["defaultLanguage", "languages"],
+        "properties": {
+          "sourceDir": { "type": "string" },
+          "partDir": { "type": "string" },
+          "defaultLanguage": { "type": "string" },
+          "routing": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "indexDocument": { "type": "string" },
+              "notFoundDocument": { "type": "string" }
+            }
+          },
+          "languages": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["baseUrl", "cloudFrontAliases"],
+              "properties": {
+                "baseUrl": { "type": "string" },
+                "targetBucket": { "type": "string" },
+                "cloudFrontAliases": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "minItems": 1
+                },
+                "webinyLocale": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "integrations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "webiny": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "sourceTableName": { "type": "string" },
+            "mirrorTableName": { "type": "string" },
+            "tenant": { "type": "string" },
+            "relevantModels": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

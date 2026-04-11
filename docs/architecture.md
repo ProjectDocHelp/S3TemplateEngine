@@ -1,159 +1,212 @@
-# S3TemplateEngine – Zielarchitektur (Ultra Lightweight, Serverless)
+# S3TemplateEngine Rewrite - Zielarchitektur
 
-## 1. Architekturprinzipien
-1. **Serverless First**: Betrieb in AWS Lambda/S3/CloudFront/DynamoDB.
-2. **Separation of Concerns**: Core-Logik ist AWS-unabhängig.
-3. **Minimalismus**: Keine Containerpflicht, kein schweres Framework.
-4. **Automatisierung vor Handarbeit**: CLI statt manueller Console-Schritte.
+## Ziel
 
-## 2. Zielstruktur
+Die Zielarchitektur trennt S3TE in einen plattformneutralen Render-Core und austauschbare Adapter fuer AWS, CLI und Tests. Die Anwendung soll anhand dieser Dokumentation neu implementierbar sein, ohne Kenntnis des monolithischen Legacy-Codes.
+
+## Architekturprinzipien
+
+1. Core und AWS bleiben strikt getrennt.
+2. dieselbe Renderlogik wird lokal, im Test und in AWS verwendet.
+3. Nutzer konfigurieren nur Projektstruktur und Inhalte, nicht Lambda-Details.
+4. ein Environment-Deploy ist fuer Noob-Nutzer genau ein CLI-Schritt.
+5. der Core kennt weder S3 noch DynamoDB noch CloudFront.
+
+## Repository-Struktur
 
 ```text
 repo/
   docs/
-    requirements.md
-    architecture.md
   packages/
-    core/           # Parser + Renderer (ohne AWS SDK)
-    aws-adapter/    # Lambda Handler + AWS Integrationsschicht
-    cli/            # Setup/Validate/Package/Deploy/Migrate
-    testkit/        # Fixtures, Mocks, Assertions
-  infra/
-    cloudformation/
-      base.yaml
-      variation.yaml
-      language.yaml
-      webiny.yaml
-  examples/
-    minimal-site/
+    core/
+    aws-adapter/
+    cli/
+    testkit/
+  schemas/
 ```
 
-## 3. Komponenten
+Die Ordner unter `packages/` sind interne Modulgrenzen. Veroeffentlicht wird nur das Root-Paket `@projectdochelp/s3te`.
 
-### 3.1 `@s3te/core`
-**Verantwortung**
-- Parse und Render der S3TE-Tags.
-- Deterministisches Rendering (gleiches Input => gleiches Output).
+## Komponenten
 
-**Schnittstelle (Beispiel)**
-- `render(template, context, options) -> { html, metadata }`
-
-**Wichtig**
-- Keine AWS-Calls.
-- Vollständig lokal testbar.
-
-### 3.2 `@s3te/aws-adapter`
-**Verantwortung**
-- Event-Handling für S3/Lambda.
-- Lesen/Schreiben von S3-Objekten.
-- DDB-Zugriffe für Abhängigkeiten/Metadaten.
-- Triggern von Invalidation-Workflow.
-
-**Wichtig**
-- Nutzt `@s3te/core` als Library.
-- Enthält nur Integrationslogik, keine Template-Logik.
-
-### 3.3 `@s3te/cli`
-**Verantwortung**
-- Projektbootstrap und Konfigurationsvalidierung.
-- Packaging von Lambda-ZIPs.
-- Deployment orchestration über CloudFormation.
-- Migrations- und Upgrade-Kommandos.
-
-**Pflicht-Kommandos (MVP)**
-- `s3te init`
-- `s3te validate`
-- `s3te test`
-- `s3te package`
-- `s3te deploy`
-- `s3te migrate`
-
-### 3.4 `@s3te/testkit`
-**Verantwortung**
-- Standardisierte lokale Tests (Render/Snapshots/A11y).
-- AWS-Mock-Utilities.
-- Referenz-Fixtures für typische S3TE-Patterns.
-
-## 4. Konfigurationsmodell
-
-### 4.1 Zentrale Projektdatei `s3te.config.json`
-Beispiel:
-
-```json
-{
-  "project": "mywebsite",
-  "environments": {
-    "dev": {
-      "region": "eu-central-1",
-      "domain": "dev.example.com"
-    },
-    "prod": {
-      "region": "eu-central-1",
-      "domain": "example.com"
-    }
-  },
-  "variants": {
-    "website": {
-      "languages": {
-        "en": { "bucket": "prod-website-mywebsite", "baseurl": "example.com" },
-        "de": { "bucket": "prod-website-mywebsite-de", "baseurl": "example.de" }
-      }
-    },
-    "app": {
-      "languages": {
-        "en": { "bucket": "prod-app-mywebsite", "baseurl": "app.example.com" }
-      }
-    }
-  },
-  "features": {
-    "webiny": false,
-    "sitemap": true
-  }
-}
+```mermaid
+flowchart LR
+  PKG["@projectdochelp/s3te"] --> CLI["cli module"]
+  PKG --> CORE["core module"]
+  PKG --> AWS["aws-adapter module"]
+  PKG --> TEST["testkit module"]
+  CLI --> CORE
+  AWS --> CORE
+  TEST --> CORE
+  CORE --> TREPO["TemplateRepository"]
+  CORE --> CREPO["ContentRepository"]
+  CORE --> DSTORE["DependencyStore"]
+  CORE --> OPUB["OutputPublisher"]
+  OPUB --> INV["InvalidationScheduler"]
+  AWS --> SSM["Runtime Manifest"]
 ```
 
-## 5. Deploymentfluss (ohne Docker)
+### `core` Modul
 
-1. `s3te validate`
-2. `s3te test`
-3. `s3te package` (ZIP-Artefakte erstellen)
-4. `s3te deploy --env dev|stage|prod`
+Verantwortung:
 
-Optional:
-- `s3te deploy --feature webiny`
-- `s3te deploy --variant app`
-- `s3te deploy --lang de`
+- Template-Sprache gemaess [template-language.md](./template-language.md)
+- Render-Kontext und Build-Orchestrierung
+- Dependency-Erfassung
+- deterministische Ergebnisbildung
 
-## 6. Update- und Migrationsstrategie
+### `aws-adapter` Modul
 
-### 6.1 Versionierung
-- SemVer pro Paket (`core`, `aws-adapter`, `cli`, `testkit`).
+Verantwortung:
 
-### 6.2 Upgradepfad
-- `s3te doctor` prüft Projektzustand.
-- `s3te migrate` transformiert Konfiguration/Defaults.
-- `s3te changelog` zeigt relevante Breaking Changes.
+- AWS Event-Normalisierung
+- S3-, DynamoDB-, SSM-, CloudFront- und Route53-Zugriffe
+- Runtime-Manifest lesen
+- Webiny-Mirror
+- CloudFormation-Deploy-Unterstuetzung
 
-### 6.3 Rollback
-- Artefaktversionen in S3 versioniert speichern.
-- CloudFormation Change Sets vor Apply.
-- `s3te rollback --to <version>` als CLI-Ziel.
+### `cli` Modul
 
-## 7. Sicherheits- und Qualitätsleitplanken
-- Least-Privilege IAM Policies statt pauschaler FullAccess.
-- Aktuelle TLS-Mindestversionen in CloudFront.
-- Pflichtchecks in CI: lint, unit, integration, config validate.
+Verantwortung:
 
-## 8. Migrationsplan (inkrementell)
+- Projektinitialisierung
+- Validierung
+- lokales Rendering
+- Tests
+- Packaging
+- Deploy
+- Diagnose und Migration
+
+### `testkit` Modul
+
+Verantwortung:
+
+- In-Memory-Implementierungen der Core-Interfaces
+- Snapshot- und Strukturtests
+- Accessibility-Helfer
+- Mocks fuer Content- und AWS-nahe Abstraktionen
+
+## Laufzeitfluesse
+
+```mermaid
+flowchart TD
+  A[S3 oder Content Event] --> B[Adapter normalisiert Event]
+  B --> C[BuildOrchestrator]
+  C --> D[Template und Content laden]
+  D --> E[Render-Pipeline ausfuehren]
+  E --> F[Outputs publizieren]
+  F --> G[Dependencies aktualisieren]
+  G --> H[Invalidierung anfordern]
+```
+
+### Lokaler Render-Lauf
+
+1. CLI liest `s3te.config.json`
+2. CLI validiert und wendet Defaults an
+3. CLI baut `ResolvedProjectConfig`
+4. CLI verwendet In-Memory- oder Dateisystem-Adapter
+5. Core rendert in `offline/S3TELocal/preview/...`
+
+### AWS-Render-Lauf
+
+1. S3 oder Content-Quelle erzeugt ein AWS Event
+2. AWS-Adapter normalisiert das Event
+3. `render-worker` laedt Runtime-Manifest und Dependencies
+4. Core rendert die betroffenen Ziele
+5. AWS-Adapter publiziert Outputs und Invalidierungen
+
+## Render-Pipeline
+
+Die Pipeline ist vertraglich fest und gilt fuer lokal, Tests und AWS gleich:
+
+1. Template laden
+2. `dbmultifile`-Kontrollblock am Template-Start pruefen
+3. `if` auswerten
+4. `fileattribute` auswerten
+5. `part`, `dbpart`, `dbmulti`, `dbitem` rekursiv aufloesen
+6. `lang` und `switchlang` auswerten
+7. `dbmultifileitem` auswerten
+8. HTML minifizieren
+9. Artefakt, Dependencies und Warnungen zurueckgeben
+
+## Persistenz
+
+Der Rewrite benoetigt drei logische Speicher:
+
+1. `ContentStore`
+2. `DependencyStore`
+3. `InvalidationStore`
+
+Die erste Referenzimplementierung verwendet DynamoDB. Das konkrete Schema ist in [data-model.md](./data-model.md) beschrieben.
+
+## Projektstruktur fuer Nutzer
+
+Die Default-Projektstruktur lautet:
+
+```text
+project/
+  s3te.config.json
+  app/
+    part/
+    website/
+  offline/
+    content/
+    schemas/
+    tests/
+  .vscode/
+```
+
+Assets liegen standardmaessig innerhalb der Variantenordner, nicht in einem separaten globalen `public/`-Ordner.
+
+## Implementierungsphasen
 
 ### Phase 1
-- Core extrahieren, bestehende Lambda-Handler weiterverwenden.
-- CLI für Validate/Package/Deploy bereitstellen.
+
+- `core` Modul
+- `testkit` Modul
+- `cli` Modul mit `init`, `validate`, `render`, `test`
 
 ### Phase 2
-- Testkit veröffentlichen und in Beispielprojekt integrieren.
-- Konfigurationsmodell standardisieren (`s3te.config.json`).
+
+- `aws-adapter` Modul
+- Packaging und Deploy
+- Dependency Store
+- Invalidation Store
 
 ### Phase 3
-- Webiny-/Sitemap-Funktionen als optionale Feature-Module.
-- Erweiterte Migrations-/Rollback-Kommandos produktiv setzen.
+
+- Webiny Mirror
+- Sitemap-Adapter
+- `doctor` und `migrate`
+
+## Dokumentenlandkarte
+
+Architektur allein reicht nicht. Die Implementierung muss diese Dokumente gemeinsam verwenden:
+
+- [requirements.md](./requirements.md)
+- [configuration.md](./configuration.md)
+- [configuration-schema.md](./configuration-schema.md)
+- [template-language.md](./template-language.md)
+- [interfaces.md](./interfaces.md)
+- [cli-contract.md](./cli-contract.md)
+- [data-model.md](./data-model.md)
+- [aws-runtime.md](./aws-runtime.md)
+- [technical-baseline.md](./technical-baseline.md)
+
+## Bewusste Architekturentscheidungen
+
+### AD-001 Ein Environment-Stack plus transienter Deploy-Stack
+
+Der Rewrite verwendet genau einen persistenten CloudFormation-Stack pro Umgebung und fuer echte Deploy-Laeufe zusaetzlich genau einen kurzen temporaeren Packaging-Stack. Das reduziert Noob-Komplexitaet massiv gegenueber dem Legacy-Aufbau mit Zusatz-Templates und haelt trotzdem alle von `deploy` angelegten AWS-Ressourcen innerhalb von CloudFormation.
+
+### AD-002 Runtime-Manifest ausserhalb der Projektkonfiguration
+
+Bucket-, Alias- und Distribution-Informationen fuer den AWS-Betrieb werden als Runtime-Manifest gehalten. Nutzer pflegen weiterhin nur `s3te.config.json`.
+
+### AD-003 Stringbasierter Template-Core
+
+V1 verwendet keinen HTML-AST. Das reduziert Abhaengigkeiten und bleibt nah genug am bisherigen Verhalten.
+
+### AD-004 Direkte Asset-Kopie im Dispatcher
+
+Nicht renderbare Dateien werden im `source-dispatcher` kopiert oder geloescht. Dadurch bleibt der `render-worker` auf echte Template-Arbeit fokussiert.

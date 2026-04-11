@@ -1,17 +1,66 @@
 {
-  "name": "S3TemplateEngine",
-  "description": "S3TemplateEngine is a lightweight template engine for AWS serverless computing, helping you create AWS S3 / AWS Cloudfront hosted websites. It optionally integrates Webiny.",
-  "license": "MIT",
+  "name": "@projectdochelp/s3te",
+  "version": "1.0.0",
+  "description": "CLI, render core, AWS adapter, and testkit for S3TemplateEngine projects",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/HOKComics/S3TemplateEngine.git"
+    "url": "git+https://github.com/ProjectDocHelp/S3TemplateEngine.git"
   },
-  "author": "HOK",
+  "homepage": "https://github.com/ProjectDocHelp/S3TemplateEngine#readme",
   "bugs": {
-    "url": "https://github.com/HOKComics/S3TemplateEngine/issues"
+    "url": "https://github.com/ProjectDocHelp/S3TemplateEngine/issues"
   },
-  "homepage": "https://github.com/HOKComics/S3TemplateEngine#readme",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "s3te",
+    "s3templateengine",
+    "cli",
+    "aws",
+    "static-site"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "s3te": "bin/s3te.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./core": "./packages/core/src/index.mjs",
+    "./aws-adapter": "./packages/aws-adapter/src/index.mjs",
+    "./testkit": "./packages/testkit/src/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin/",
+    "packages/cli/bin/",
+    "packages/cli/src/",
+    "packages/core/src/",
+    "packages/aws-adapter/src/",
+    "packages/testkit/src/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
-    "jsonpack": "^1.1.5"
+    "@aws-sdk/client-cloudfront": "^3.0.0",
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/client-lambda": "^3.0.0",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-sfn": "^3.0.0",
+    "@aws-sdk/client-ssm": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "@aws-sdk/util-dynamodb": "^3.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node ./scripts/run-tests.mjs",
+    "cli": "node ./packages/cli/bin/s3te.mjs",
+    "pack:publish": "npm pack",
+    "pack:check": "npm pack --dry-run",
+    "publish:dry-run": "npm publish --access public --dry-run"
   }
 }

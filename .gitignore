@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# npm / publish artifacts
+*.tgz
+npm-debug.log*
+.npmrc
+examples/**/package-lock.json
+
+# Test and coverage output
+coverage/
+.nyc_output/
+
+# Local editor and OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.history/
+.tmp/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Environment-specific local files
+.env
+.env.*
+*.local
+!.env.example
+
+# S3TE generated local output
+**/offline/S3TELocal/preview/
+**/offline/S3TELocal/render-state/
+**/offline/IAAS/package/

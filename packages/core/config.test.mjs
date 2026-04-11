@@ -62,7 +62,7 @@ test("config resolves placeholders per environment instead of leaking the last e
   assert.equal(prodTables.content, "PROD_s3te_content_mysite");
 });
 
-test("config derives environment-prefixed public hosts for non-prod environments", () => {
+test("config derives non-prod public hosts without deepening first-level subdomains", () => {
   const config = resolveProjectConfig({
     project: {
       name: "sop"
@@ -102,9 +102,9 @@ test("config derives environment-prefixed public hosts for non-prod environments
   assert.equal(resolveBaseUrl(config, "prod", "website", "de"), "schwimmbad-oberprechtal.de");
   assert.equal(resolveBaseUrl(config, "test", "website", "de"), "test.schwimmbad-oberprechtal.de");
   assert.equal(resolveBaseUrl(config, "prod", "app", "de"), "app.schwimmbad-oberprechtal.de");
-  assert.equal(resolveBaseUrl(config, "test", "app", "de"), "test.app.schwimmbad-oberprechtal.de");
+  assert.equal(resolveBaseUrl(config, "test", "app", "de"), "test-app.schwimmbad-oberprechtal.de");
   assert.deepEqual(resolveCloudFrontAliases(config, "test", "website", "de"), ["test.schwimmbad-oberprechtal.de"]);
-  assert.deepEqual(resolveCloudFrontAliases(config, "test", "app", "de"), ["test.app.schwimmbad-oberprechtal.de"]);
+  assert.deepEqual(resolveCloudFrontAliases(config, "test", "app", "de"), ["test-app.schwimmbad-oberprechtal.de"]);
   assert.equal(resolveCodeBucketName(config, "prod", "website"), "website-code-sop");
   assert.equal(resolveCodeBucketName(config, "test", "website"), "test-website-code-sop");
   assert.equal(resolveTargetBucketName(config, "prod", "app", "de"), "app-sop");

@@ -169,7 +169,7 @@ test("cloudformation template derives non-prod aliases and bucket names from the
   assert.equal(template.Resources.websitedeOutputBucket.Properties.BucketName, "test-website-sop");
   assert.equal(template.Resources.appdeOutputBucket.Properties.BucketName, "test-app-sop");
   assert.deepEqual(template.Resources.websitedeDistribution.Properties.DistributionConfig.Aliases, ["test.schwimmbad-oberprechtal.de"]);
-  assert.deepEqual(template.Resources.appdeDistribution.Properties.DistributionConfig.Aliases, ["test.app.schwimmbad-oberprechtal.de"]);
+  assert.deepEqual(template.Resources.appdeDistribution.Properties.DistributionConfig.Aliases, ["test-app.schwimmbad-oberprechtal.de"]);
 });
 
 test("temporary deploy stack contains only the artifact bucket output", () => {

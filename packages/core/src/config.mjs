@@ -75,12 +75,27 @@ function environmentHostPrefix(config, environmentName) {
 }
 
 function prefixHostForEnvironment(config, host, environmentName) {
-  const prefix = environmentHostPrefix(config, environmentName);
-  if (!prefix) {
+  if (!hasProductionEnvironment(config) || isProductionEnvironment(environmentName)) {
     return host;
   }
 
-  return host.startsWith(prefix) ? host : `${prefix}${host}`;
+  const normalizedHost = String(host).trim();
+  if (!normalizedHost) {
+    return normalizedHost;
+  }
+
+  if (normalizedHost.startsWith(`${environmentName}.`) || normalizedHost.startsWith(`${environmentName}-`)) {
+    return normalizedHost;
+  }
+
+  const labels = normalizedHost.split(".");
+  if (labels.length <= 2) {
+    const prefix = environmentHostPrefix(config, environmentName);
+    return `${prefix}${normalizedHost}`;
+  }
+
+  const [firstLabel, ...remainingLabels] = labels;
+  return `${environmentName}-${firstLabel}.${remainingLabels.join(".")}`;
 }
 
 function isValidConfiguredHost(value) {

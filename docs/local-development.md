@@ -195,6 +195,7 @@ flowchart TD
 ### `s3te doctor`
 
 - prueft Projektstruktur, Konfiguration und lokale Voraussetzungen
+- prueft mit `--env <name>` auch, ob das ACM-Zertifikat die fuer dieses Environment abgeleiteten CloudFront-Aliase abdeckt
 - meldet haeufige Fehlerbilder vor Render oder Deploy
 
 ### `s3te migrate`

@@ -339,11 +339,11 @@ Optionen:
 Prueft mindestens:
 
 1. Node.js-Version
-2. Schreibrechte im Projekt
-3. Vorhandensein von `s3te.config.json`
-4. aufloesbare Template-Pfade
-5. AWS-Credentials fuer die gewaehlte Umgebung
-6. AWS CLI Installation fuer die dokumentierte Noob-Setup-Route
+2. Vorhandensein von `s3te.config.json`
+3. Schreibrechte im Projekt
+4. AWS CLI Installation fuer die dokumentierte Noob-Setup-Route
+5. bei `--env <name>` die AWS-Credentials fuer die gewaehlte Umgebung
+6. bei `--env <name>` die ACM-Zertifikatsabdeckung fuer die aus `baseUrl` und `cloudFrontAliases` abgeleiteten Aliase
 
 ## `s3te migrate`
 

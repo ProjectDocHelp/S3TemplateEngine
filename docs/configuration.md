@@ -202,8 +202,9 @@ Hinweis zu `certificateArn`:
 
 - das Zertifikat muss in `us-east-1` liegen
 - es muss alle finalen CloudFront-Aliase des Environments abdecken
-- `*.example.com` deckt `test.example.com` ab, aber nicht `test.app.example.com`
-- fuer mehrstufige Hosts wie `test.app.example.com` braucht man zum Beispiel `*.app.example.com`, den exakten Hostnamen oder ein separates Zertifikat pro Environment
+- `*.example.com` deckt `test.example.com` und `test-app.example.com` ab
+- `*.example.com` deckt nicht `test-admin.app.example.com` ab
+- fuer tiefere Hosts wie `test-admin.app.example.com` braucht man zum Beispiel `*.app.example.com`, den exakten Hostnamen oder ein separates Zertifikat pro Environment
 
 ### `rendering`
 
@@ -301,17 +302,20 @@ Jede Sprache unter `variants.<variant>.languages` besitzt:
 Wenn das Projekt ein Environment `prod` besitzt, werden `baseUrl` und `cloudFrontAliases` als produktive Basiswerte interpretiert:
 
 1. fuer `prod` bleiben sie unveraendert
-2. fuer alle anderen Environments wird `<env>.` davor gesetzt
+2. bei Apex-Hosts mit genau zwei Labels wird fuer alle anderen Environments `<env>.` davor gesetzt
+3. bei Hosts mit mindestens einer Subdomain wird fuer alle anderen Environments `<env>-` an das linke erste Label angehaengt
 
 Beispiele:
 
 - `schwimmbad-oberprechtal.de` wird in `test` zu `test.schwimmbad-oberprechtal.de`
-- `app.schwimmbad-oberprechtal.de` wird in `test` zu `test.app.schwimmbad-oberprechtal.de`
+- `app.schwimmbad-oberprechtal.de` wird in `test` zu `test-app.schwimmbad-oberprechtal.de`
+- `admin.app.schwimmbad-oberprechtal.de` wird in `test` zu `test-admin.app.schwimmbad-oberprechtal.de`
 
 Wichtig fuer ACM:
 
 - das Zertifikat des gewaehlten Environments muss diese abgeleiteten Aliase ebenfalls abdecken
-- ein einzelnes Wildcard-Zertifikat fuer `*.schwimmbad-oberprechtal.de` deckt `test.schwimmbad-oberprechtal.de` ab, aber nicht `test.app.schwimmbad-oberprechtal.de`
+- ein einzelnes Wildcard-Zertifikat fuer `*.schwimmbad-oberprechtal.de` deckt `test.schwimmbad-oberprechtal.de` und `test-app.schwimmbad-oberprechtal.de` ab
+- fuer `test-admin.app.schwimmbad-oberprechtal.de` waere stattdessen zum Beispiel `*.app.schwimmbad-oberprechtal.de` noetig
 
 Default fuer `targetBucket`, wenn nicht explizit gesetzt:
 
@@ -415,10 +419,12 @@ Mit Defaults wird daraus mindestens:
 - `codeBuckets.website = dev-website-code-mysite`
 - `outputDir = offline/S3TELocal/preview`
 
-Wenn zusaetzlich ein Environment `prod` existiert, werden nicht-produktive Hosts automatisch praefixiert und produktive Bucket-Namen ohne `prod-` aufgeloest:
+Wenn zusaetzlich ein Environment `prod` existiert, werden nicht-produktive Hosts automatisch abgeleitet und produktive Bucket-Namen ohne `prod-` aufgeloest:
 
 - `prod website.baseUrl = example.com`
 - `test website.baseUrl = test.example.com`
+- `prod app.baseUrl = app.example.com`
+- `test app.baseUrl = test-app.example.com`
 - `prod targetBucket = website-mysite`
 - `test targetBucket = test-website-mysite`
 

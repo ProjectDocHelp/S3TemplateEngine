@@ -130,7 +130,7 @@ test("doctorProject reports an unknown environment instead of crashing", async (
   assert.equal(checks.at(-1)?.message, "Unknown environment dev. Known environments: test, prod.");
 });
 
-test("doctorProject reports derived aliases that are not covered by the ACM certificate", async (context) => {
+test("doctorProject accepts app-style non-prod aliases under a single wildcard certificate", async (context) => {
   const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "s3te-doctor-"));
   context.after(async () => {
     await fs.rm(projectDir, { recursive: true, force: true });
@@ -200,19 +200,19 @@ test("doctorProject reports derived aliases that are not covered by the ACM cert
   });
 
   const certificateCheck = checks.find((check) => check.name === "acm-certificate");
-  assert.equal(certificateCheck?.ok, false);
-  assert.match(certificateCheck?.message ?? "", /test\.app\.schwimmbad-oberprechtal\.de/);
+  assert.equal(certificateCheck?.ok, true);
+  assert.match(certificateCheck?.message ?? "", /covers 2 CloudFront alias/);
 });
 
-test("doctorProject accepts a certificate that covers nested test aliases explicitly", async (context) => {
+test("doctorProject still reports deeper aliases outside the certificate wildcard scope", async (context) => {
   const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "s3te-doctor-"));
   context.after(async () => {
     await fs.rm(projectDir, { recursive: true, force: true });
   });
   await fs.mkdir(path.join(projectDir, "app", "website"), { recursive: true });
   await fs.mkdir(path.join(projectDir, "app", "part"), { recursive: true });
-  await fs.mkdir(path.join(projectDir, "app", "app"), { recursive: true });
-  await fs.mkdir(path.join(projectDir, "app", "part-app"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "admin"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "part-admin"), { recursive: true });
   await fs.writeFile(path.join(projectDir, "s3te.config.json"), "{}\n");
 
   const resolved = await validateAndResolveProjectConfig({
@@ -239,14 +239,14 @@ test("doctorProject accepts a certificate that covers nested test aliases explic
           }
         }
       },
-      app: {
-        sourceDir: "app/app",
-        partDir: "app/part-app",
+      admin: {
+        sourceDir: "app/admin",
+        partDir: "app/part-admin",
         defaultLanguage: "de",
         languages: {
           de: {
-            baseUrl: "app.schwimmbad-oberprechtal.de",
-            cloudFrontAliases: ["app.schwimmbad-oberprechtal.de"]
+            baseUrl: "admin.app.schwimmbad-oberprechtal.de",
+            cloudFrontAliases: ["admin.app.schwimmbad-oberprechtal.de"]
           }
         }
       }
@@ -266,8 +266,7 @@ test("doctorProject accepts a certificate that covers nested test aliases explic
           DomainName: "schwimmbad-oberprechtal.de",
           SubjectAlternativeNames: [
             "schwimmbad-oberprechtal.de",
-            "*.schwimmbad-oberprechtal.de",
-            "*.app.schwimmbad-oberprechtal.de"
+            "*.schwimmbad-oberprechtal.de"
           ]
         }
       })
@@ -275,8 +274,8 @@ test("doctorProject accepts a certificate that covers nested test aliases explic
   });
 
   const certificateCheck = checks.find((check) => check.name === "acm-certificate");
-  assert.equal(certificateCheck?.ok, true);
-  assert.match(certificateCheck?.message ?? "", /covers 2 CloudFront alias/);
+  assert.equal(certificateCheck?.ok, false);
+  assert.match(certificateCheck?.message ?? "", /test-admin\.app\.schwimmbad-oberprechtal\.de/);
 });
 
 test("runProjectTests executes scaffolded offline tests successfully", async (context) => {

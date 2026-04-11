@@ -332,8 +332,10 @@ Pflichtregeln:
 
 1. jede Umgebung benoetigt ein ACM-Zertifikat in `us-east-1`
 2. `cloudFrontAliases` werden bei der Distribution hinterlegt
-3. wenn `route53HostedZoneId` gesetzt ist, legt `deploy` A- und AAAA-Alias-Records an
-4. wenn `route53HostedZoneId` fehlt, bleibt DNS ein manueller Schritt
+3. wenn ein `prod`-Environment existiert, werden nicht-produktive Aliase aus der Konfiguration abgeleitet:
+   `example.com` -> `test.example.com`, `app.example.com` -> `test-app.example.com`
+4. wenn `route53HostedZoneId` gesetzt ist, legt `deploy` A- und AAAA-Alias-Records an
+5. wenn `route53HostedZoneId` fehlt, bleibt DNS ein manueller Schritt
 
 ## Namenskonventionen
 

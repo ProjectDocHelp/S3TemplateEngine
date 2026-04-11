@@ -50,7 +50,9 @@ Root
 - `routing.notFoundDocument`: `404.html`
 - `languages.<lang>.webinyLocale`: Sprach-Key selbst, zum Beispiel `en`
 - `languages.<lang>.baseUrl` und `cloudFrontAliases` muessen Hostnamen ohne Protokoll oder Pfad sein
-- wenn ein Environment `prod` existiert, werden nicht-produktive Hostnamen implizit als `<env>.<host>` aufgeloest
+- wenn ein Environment `prod` existiert, werden nicht-produktive Hostnamen implizit umgeschrieben:
+- Apex-Hosts wie `example.com` werden zu `<env>.example.com`
+- Hosts mit Subdomain wie `app.example.com` werden zu `<env>-app.example.com`
 
 ### `environments.<env>`
 
@@ -176,7 +178,8 @@ Root
 2. `sourceDir` kann aus dem Variant-Key abgeleitet werden.
 3. `targetBucket` kann aus Variant-, Sprach- und Projektkontext abgeleitet werden.
 4. `baseUrl` und `cloudFrontAliases` muessen Hostnamen ohne Protokoll oder Pfad sein.
-5. wenn ein `prod`-Environment existiert, werden Hosts fuer nicht-produktive Environments automatisch mit `<env>.` praefixiert.
+5. wenn ein `prod`-Environment existiert, werden Hosts fuer nicht-produktive Environments automatisch umgeschrieben:
+   Apex-Hosts erhalten `<env>.`, Hosts mit vorhandener Subdomain `<env>-` am linken ersten Label.
 6. `certificateArn` muss in `us-east-1` liegen.
 7. `targetBucket`- und `codeBuckets`-Namen muessen nach Platzhalteraufloesung eindeutig sein.
 8. `defaultLanguage` muss in der jeweiligen Sprachmenge existieren.

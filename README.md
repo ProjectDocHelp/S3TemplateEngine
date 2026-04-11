@@ -226,13 +226,18 @@ The most important fields for a first deployment are:
 
 `route53HostedZoneId` is optional. Leave it out if you want to manage DNS yourself.
 
-Use plain hostnames in `baseUrl` and `cloudFrontAliases`, not full URLs. If your config contains a `prod` environment plus additional environments such as `test` or `stage`, S3TE keeps the `prod` hostname unchanged and derives non-production hostnames automatically by prepending `<env>.`.
+Use plain hostnames in `baseUrl` and `cloudFrontAliases`, not full URLs. If your config contains a `prod` environment plus additional environments such as `test` or `stage`, S3TE keeps the `prod` hostname unchanged and derives non-production hostnames like this:
+
+- apex host: `example.com` -> `test.example.com`
+- first-level subdomain: `app.example.com` -> `test-app.example.com`
+- deeper host: `admin.app.example.com` -> `test-admin.app.example.com`
 
 Your ACM certificate must cover the final derived aliases of the environment you deploy. Example:
 
 - `*.example.com` covers `test.example.com`
-- `*.example.com` does not cover `test.app.example.com`
-- for nested aliases like `test.app.example.com`, add a SAN such as `*.app.example.com`, the exact hostname, or use a different `certificateArn` for that environment
+- `*.example.com` also covers `test-app.example.com`
+- `*.example.com` does not cover `test-admin.app.example.com`
+- for deeper aliases like `test-admin.app.example.com`, add a SAN such as `*.app.example.com`, the exact hostname, or use a different `certificateArn` for that environment
 
 </details>
 

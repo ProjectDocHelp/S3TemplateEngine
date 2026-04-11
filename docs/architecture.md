@@ -62,6 +62,7 @@ Verantwortung:
 - AWS Event-Normalisierung
 - S3-, DynamoDB-, SSM-, CloudFront- und Route53-Zugriffe
 - Runtime-Manifest lesen
+- Sitemap-Updater fuer Output-Buckets
 - Webiny-Mirror
 - CloudFormation-Deploy-Unterstuetzung
 
@@ -114,6 +115,7 @@ flowchart TD
 3. `render-worker` laedt Runtime-Manifest und Dependencies
 4. Core rendert die betroffenen Ziele
 5. AWS-Adapter publiziert Outputs und Invalidierungen
+6. optionale AWS-Features wie `sitemap` oder Webiny reagieren auf die daraus entstehenden Runtime-Events
 
 ## Render-Pipeline
 
@@ -165,7 +167,7 @@ Aktuell im Repository umgesetzt:
 - `core` Modul mit Render-Pipeline und Konfigurationsaufloesung
 - `testkit` Modul mit In-Memory-Repositories, Dependency Store sowie sammelnden Publisher-/Scheduler-Testadaptern
 - `cli` Modul mit `init`, `validate`, `render`, `test`, `package`, `sync`, `deploy`, `doctor` und `migrate`
-- `aws-adapter` Modul mit Packaging, Deploy, Source-Sync, Runtime-Manifest, Invalidation und optionalem Webiny-Mirror
+- `aws-adapter` Modul mit Packaging, Deploy, Source-Sync, Runtime-Manifest, Invalidation sowie optionalem Sitemap- und Webiny-Runtime-Pfad
 
 ## Dokumentenlandkarte
 

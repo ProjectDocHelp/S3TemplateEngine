@@ -46,7 +46,8 @@ flowchart LR
   ECF --> L2[render-worker]
   ECF --> L3[invalidation-scheduler]
   ECF --> L4[invalidation-executor]
-  ECF --> L5[content-mirror optional]
+  ECF --> L5[sitemap-updater optional]
+  ECF --> L6[content-mirror optional]
   ECF --> D1[dependency table]
   ECF --> D2[content table]
   ECF --> D3[invalidation table]
@@ -69,6 +70,7 @@ flowchart LR
 - `render-worker`
 - `invalidation-scheduler`
 - `invalidation-executor`
+- optional `sitemap-updater`
 - optional `content-mirror`
 
 ### DynamoDB
@@ -107,6 +109,17 @@ Beim spaeteren Aktivieren von `integrations.webiny.enabled = true` und einem ern
 2. werden `content-mirror` und `ContentMirrorEventSourceMapping` in denselben Stack aufgenommen
 3. bleibt der interne Content Store derselbe
 4. muessen keine Buckets, Distributionen oder Tabellen neu benannt werden
+
+## Sitemap nachruesten
+
+Die V1-Topologie erlaubt auch das spaetere Aktivieren von `integrations.sitemap.enabled = true`.
+
+Beim anschliessenden `deploy`:
+
+1. bleibt der bestehende Environment-Stack erhalten
+2. wird `sitemap-updater` in denselben Stack aufgenommen
+3. bekommen die Output-Buckets HTML-basierte S3-Notifications auf diese Lambda
+4. schreibt S3TE danach automatisch eine `sitemap.xml` pro Output-Bucket
 
 ## Runtime-Manifest
 
@@ -240,6 +253,22 @@ Verantwortung:
 3. Content Store updaten
 4. den `render-worker` mit `content-item`-Events asynchron anstossen
 
+### `sitemap-updater`
+
+Pflicht-Umgebungsvariablen:
+
+- `S3TE_ENVIRONMENT`
+- `S3TE_RUNTIME_PARAMETER`
+
+Verantwortung:
+
+1. S3-Events aus Output-Buckets fuer HTML-Dateien empfangen
+2. Bucket auf Variante und Sprache zurueckabbilden
+3. `sitemap.xml` laden oder leer initialisieren
+4. `index.html` und `<dir>/index.html` in saubere kanonische URLs umschreiben
+5. `404.html` ignorieren
+6. `sitemap.xml` im betroffenen Output-Bucket aktualisieren
+
 ## Event-Fluesse
 
 ```mermaid
@@ -249,6 +278,7 @@ sequenceDiagram
   participant W as render-worker
   participant T as Dependency Store
   participant O as Output Bucket
+  participant SM as sitemap-updater
   participant I as invalidation-scheduler
   participant E as invalidation-executor
   participant CF as CloudFront
@@ -258,6 +288,8 @@ sequenceDiagram
   D->>O: copy/delete asset
   W->>T: replace dependencies
   W->>O: put/delete rendered output
+  O->>SM: ObjectCreated/ObjectRemoved for *.html, *.htm
+  SM->>O: update sitemap.xml
   W->>I: enqueue invalidation
   I->>E: start debounce execution
   E->>CF: CreateInvalidation(/*)
@@ -308,6 +340,24 @@ Pflichtverhalten:
 2. Requests innerhalb des Debounce-Fensters zusammenfassen
 3. in V1 immer `/*` invalidieren
 
+### 4. Sitemap-Events
+
+Trigger:
+
+- `ObjectCreated:*`
+- `ObjectRemoved:*`
+
+Quelle:
+
+- jeder Output-Bucket der Umgebung, gefiltert auf `*.html` und `*.htm`
+
+Pflichtverhalten:
+
+1. `404.html` ignorieren
+2. `index.html` als `/` und `<dir>/index.html` als `<dir>/` schreiben
+3. auf normale Seiten wie `about.html` den Dateinamen in der URL belassen
+4. `sitemap.xml` im selben Output-Bucket aktualisieren
+
 ## CloudFormation-Outputs
 
 Der Environment-Stack muss mindestens diese Outputs erzeugen:
@@ -351,6 +401,7 @@ Pflichtregeln:
 - `<STACKPREFIX>_s3te_render_worker`
 - `<STACKPREFIX>_s3te_invalidation_scheduler`
 - `<STACKPREFIX>_s3te_invalidation_executor`
+- `<STACKPREFIX>_s3te_sitemap_updater`
 - `<STACKPREFIX>_s3te_content_mirror`
 
 ### Step Function
@@ -406,6 +457,12 @@ Die Referenzimplementierung soll Least Privilege verwenden. Die folgenden Berech
 - `dynamodb:DeleteItem`
 - `lambda:InvokeFunction` auf `render-worker`
 
+### `sitemap-updater`
+
+- `ssm:GetParameter`
+- `s3:GetObject`
+- `s3:PutObject`
+
 ### `deploy`-Pfad der CLI
 
 - `cloudformation:*` auf den Environment-Stack
@@ -423,6 +480,13 @@ Aktiviert:
 
 - `content-mirror`
 - Event Source Mapping auf den Quell-Stream
+
+### `sitemap`
+
+Aktiviert:
+
+- `sitemap-updater`
+- S3-Notifications von allen Output-Buckets auf `*.html` und `*.htm`
 
 ## Bewusste Abweichungen zum Legacy-Repo
 

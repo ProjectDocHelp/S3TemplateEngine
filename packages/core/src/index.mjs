@@ -7,6 +7,7 @@ export {
   resolveBaseUrl,
   resolveCodeBucketName,
   resolveCloudFrontAliases,
+  resolveEnvironmentSitemapIntegration,
   resolveEnvironmentWebinyIntegration,
   resolveRuntimeManifestParameterName,
   resolveProjectConfig,

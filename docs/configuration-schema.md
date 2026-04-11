@@ -77,6 +77,11 @@ Root
 - `tenant`: nicht gesetzt
 - `environments.<env>` kann diese Werte pro Environment ueberschreiben
 
+### `integrations.sitemap`
+
+- `enabled`: `false`
+- `environments.<env>.enabled` kann den globalen Schalter pro Environment ueberschreiben
+
 ## Typregeln
 
 ### `project`
@@ -172,6 +177,17 @@ Root
 }
 ```
 
+### `integrations.sitemap`
+
+```ts
+{
+  enabled?: boolean;
+  environments?: Record<string, {
+    enabled?: boolean;
+  }>;
+}
+```
+
 ## Regeln, die das JSON Schema nicht alleine ausdrueckt
 
 1. `stackPrefix` kann aus dem Environment-Key abgeleitet werden.
@@ -187,6 +203,7 @@ Root
 10. `webinyLocale` ist empfohlen, wenn S3TE-Sprachkeys und Webiny-Locale-Codes nicht identisch sind.
 11. `tenant` ist empfohlen, wenn dieselbe Webiny-Installation mehrere Tenants hostet.
 12. `integrations.webiny.environments.<env>` darf nur vorhandene Environments referenzieren.
+13. `integrations.sitemap.environments.<env>` darf nur vorhandene Environments referenzieren.
 
 ## Validierungsfehler
 

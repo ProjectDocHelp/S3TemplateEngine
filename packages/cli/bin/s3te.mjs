@@ -385,6 +385,8 @@ async function main() {
       environment: asArray(options.env)[0],
       enableWebiny: Boolean(options["enable-webiny"]),
       disableWebiny: Boolean(options["disable-webiny"]),
+      enableSitemap: Boolean(options["enable-sitemap"]),
+      disableSitemap: Boolean(options["disable-sitemap"]),
       webinySourceTable: options["webiny-source-table"],
       webinyTenant: options["webiny-tenant"],
       webinyModels: asArray(options["webiny-model"])

@@ -158,6 +158,12 @@ function resolveWebinyConfigDefaults(webinyConfig = {}) {
   };
 }
 
+function resolveSitemapConfigDefaults(sitemapConfig = {}) {
+  return {
+    enabled: sitemapConfig.enabled ?? false
+  };
+}
+
 function resolveProjectWebinyConfig(projectConfig) {
   const baseConfig = resolveWebinyConfigDefaults(projectConfig.integrations?.webiny ?? {});
   const environmentConfigs = Object.fromEntries(Object.entries(projectConfig.integrations?.webiny?.environments ?? {}).map(([environmentName, webinyConfig]) => ([
@@ -168,6 +174,21 @@ function resolveProjectWebinyConfig(projectConfig) {
       mirrorTableName: webinyConfig.mirrorTableName,
       relevantModels: webinyConfig.relevantModels ? normalizeStringList(webinyConfig.relevantModels) : undefined,
       tenant: webinyConfig.tenant
+    }
+  ])));
+
+  return {
+    ...baseConfig,
+    environments: environmentConfigs
+  };
+}
+
+function resolveProjectSitemapConfig(projectConfig) {
+  const baseConfig = resolveSitemapConfigDefaults(projectConfig.integrations?.sitemap ?? {});
+  const environmentConfigs = Object.fromEntries(Object.entries(projectConfig.integrations?.sitemap?.environments ?? {}).map(([environmentName, sitemapConfig]) => ([
+    environmentName,
+    {
+      enabled: sitemapConfig.enabled
     }
   ])));
 
@@ -262,7 +283,8 @@ export function resolveProjectConfig(projectConfig) {
   };
 
   const integrations = {
-    webiny: resolveProjectWebinyConfig(projectConfig)
+    webiny: resolveProjectWebinyConfig(projectConfig),
+    sitemap: resolveProjectSitemapConfig(projectConfig)
   };
 
   for (const [variantName, variantConfig] of Object.entries(variants)) {
@@ -332,6 +354,15 @@ export function resolveEnvironmentWebinyIntegration(config, environmentName) {
   };
 }
 
+export function resolveEnvironmentSitemapIntegration(config, environmentName) {
+  const baseConfig = resolveSitemapConfigDefaults(config.integrations?.sitemap ?? {});
+  const environmentOverride = config.integrations?.sitemap?.environments?.[environmentName] ?? {};
+
+  return {
+    enabled: environmentOverride.enabled ?? baseConfig.enabled
+  };
+}
+
 export function resolveTableNames(config, environmentName) {
   const context = createPlaceholderContext(config, environmentName);
   const webinyConfig = resolveEnvironmentWebinyIntegration(config, environmentName);
@@ -355,6 +386,7 @@ export function resolveStackName(config, environmentName) {
 export function buildEnvironmentRuntimeConfig(config, environmentName, stackOutputs = {}) {
   const environmentConfig = config.environments[environmentName];
   const webinyConfig = resolveEnvironmentWebinyIntegration(config, environmentName);
+  const sitemapConfig = resolveEnvironmentSitemapIntegration(config, environmentName);
   const tables = resolveTableNames(config, environmentName);
   const runtimeParameterName = resolveRuntimeManifestParameterName(config, environmentName);
   const stackName = resolveStackName(config, environmentName);
@@ -403,6 +435,9 @@ export function buildEnvironmentRuntimeConfig(config, environmentName, stackOutp
       webiny: {
         ...webinyConfig,
         mirrorTableName: tables.webinyMirror
+      },
+      sitemap: {
+        ...sitemapConfig
       }
     },
     variants
@@ -517,6 +552,7 @@ export async function validateAndResolveProjectConfig(projectConfig, options = {
   }
 
   const configuredWebiny = projectConfig.integrations?.webiny;
+  const configuredSitemap = projectConfig.integrations?.sitemap;
   for (const [environmentName] of environmentEntries) {
     const environmentWebinyConfig = resolveEnvironmentWebinyIntegration(resolveProjectConfig({
       ...projectConfig,
@@ -535,6 +571,15 @@ export async function validateAndResolveProjectConfig(projectConfig, options = {
       errors.push({
         code: "CONFIG_CONFLICT_ERROR",
         message: `integrations.webiny.environments.${environmentName} does not match a configured environment.`
+      });
+    }
+  }
+
+  for (const environmentName of Object.keys(configuredSitemap?.environments ?? {})) {
+    if (!projectConfig.environments?.[environmentName]) {
+      errors.push({
+        code: "CONFIG_CONFLICT_ERROR",
+        message: `integrations.sitemap.environments.${environmentName} does not match a configured environment.`
       });
     }
   }

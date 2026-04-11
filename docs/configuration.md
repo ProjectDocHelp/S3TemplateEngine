@@ -130,6 +130,14 @@ Die Zielimplementierung muss die Konfiguration in dieser Reihenfolge aufbereiten
     }
   },
   "integrations": {
+    "sitemap": {
+      "enabled": true,
+      "environments": {
+        "dev": {
+          "enabled": false
+        }
+      }
+    },
     "webiny": {
       "enabled": false,
       "sourceTableName": "webiny-1234567",
@@ -262,6 +270,22 @@ Defaults:
 
 Optionaler Block.
 
+`integrations.sitemap` Defaults:
+
+- `enabled`: `false`
+- `environments.<env>`: kein Override
+
+Wenn Sitemap fuer ein Environment effektiv `enabled = true` ist, pflegt S3TE nach dem Deploy automatisch eine `sitemap.xml` pro Output-Bucket dieses Environments.
+
+`integrations.sitemap.environments.<env>` darf nur `enabled` enthalten und ueberschreibt den globalen Sitemap-Schalter nur fuer dieses eine Environment.
+
+Das Sitemap-Feature arbeitet auf den Output-Buckets:
+
+- HTML-Upserts und -Deletes aktualisieren `sitemap.xml`
+- `404.html` wird ignoriert
+- `index.html` und `<dir>/index.html` werden als saubere Verzeichnis-URLs geschrieben
+- nicht-HTML Assets bleiben ausserhalb der Sitemap
+
 `integrations.webiny` Defaults:
 
 - `enabled`: `false`
@@ -371,6 +395,7 @@ Diese Regeln sind zusaetzlich zum JSON Schema Pflicht:
 11. `sourceDir` und `partDir` muessen lokal existieren, sobald `render`, `test`, `package` oder `deploy` gestartet wird
 12. wenn `integrations.webiny.enabled = true`, muessen `aws.contentStore` und `sourceTableName` aufgeloest werden koennen
 13. wenn `integrations.webiny.enabled = true` und mehrere Webiny-Tenants dieselbe Tabelle teilen, soll `integrations.webiny.tenant` gesetzt werden
+14. `integrations.sitemap.environments.<env>` darf nur vorhandene Environments referenzieren
 
 ## Abgeleitete Runtime-Werte
 

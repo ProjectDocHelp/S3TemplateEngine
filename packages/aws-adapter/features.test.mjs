@@ -9,13 +9,16 @@ test("configured webiny becomes an active feature even without explicit CLI flag
       prod: {}
     },
     integrations: {
+      sitemap: {
+        enabled: true
+      },
       webiny: {
         enabled: true
       }
     }
   });
 
-  assert.deepEqual(features, ["webiny"]);
+  assert.deepEqual(features, ["sitemap", "webiny"]);
 });
 
 test("requested features are de-duplicated against configured features", () => {
@@ -24,13 +27,16 @@ test("requested features are de-duplicated against configured features", () => {
       prod: {}
     },
     integrations: {
+      sitemap: {
+        enabled: true
+      },
       webiny: {
         enabled: true
       }
     }
-  }, ["webiny"]);
+  }, ["webiny", "sitemap"]);
 
-  assert.deepEqual(features, ["webiny"]);
+  assert.deepEqual(features, ["sitemap", "webiny"]);
 });
 
 test("configured webiny can be enabled only for a specific environment", () => {
@@ -52,5 +58,26 @@ test("configured webiny can be enabled only for a specific environment", () => {
   };
 
   assert.deepEqual(resolveRequestedFeatures(config, [], "test"), ["webiny"]);
+  assert.deepEqual(resolveRequestedFeatures(config, [], "prod"), []);
+});
+
+test("configured sitemap can be enabled only for a specific environment", () => {
+  const config = {
+    environments: {
+      test: {},
+      prod: {}
+    },
+    integrations: {
+      sitemap: {
+        environments: {
+          test: {
+            enabled: true
+          }
+        }
+      }
+    }
+  };
+
+  assert.deepEqual(resolveRequestedFeatures(config, [], "test"), ["sitemap"]);
   assert.deepEqual(resolveRequestedFeatures(config, [], "prod"), []);
 });

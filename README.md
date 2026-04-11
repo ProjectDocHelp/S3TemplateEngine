@@ -18,6 +18,7 @@ This README is the user guide for the rewrite generation. The deeper implementat
     - [Daily Workflow](#daily-workflow)
     - [CLI Commands](#cli-commands)
     - [Template Commands](#template-commands)
+  - [Optional: Sitemap](#optional-sitemap)
   - [Optional: Webiny CMS](#optional-webiny-cms)
 
 ## Motivation
@@ -64,6 +65,8 @@ The website bucket contains the finished result that visitors actually receive t
 That source sync is not limited to Lambda code. It includes your `.html`, `.part`, CSS, JavaScript, images and other project files so the running AWS stack can react to source changes inside the code bucket.
 
 The persistent environment stack contains the long-lived AWS resources such as buckets, Lambda functions, DynamoDB tables, CloudFront distributions and the runtime manifest parameter. The temporary deploy stack exists only so CloudFormation can consume the packaged Lambda artifacts cleanly.
+
+If optional runtime features such as `sitemap` or Webiny are enabled in `s3te.config.json`, the same environment stack also carries those extra Lambdas and event bindings.
 
 </details>
 
@@ -481,7 +484,7 @@ Once Webiny is installed and the stack is deployed with Webiny enabled, CMS cont
 | `s3te sync --env <name>` | Uploads current project sources into the configured code buckets. |
 | `s3te doctor --env <name>` | Checks local machine and AWS access before deploy. |
 | `s3te deploy --env <name>` | Deploys or updates the AWS environment and syncs source files. |
-| `s3te migrate` | Updates older project configs and can retrofit Webiny into an existing S3TE project. |
+| `s3te migrate` | Updates older project configs and can retrofit optional features such as `sitemap` or Webiny into an existing S3TE project. |
 
 </details>
 
@@ -542,6 +545,63 @@ These are the core S3TE commands you will use even in a plain HTML-only project.
 </details>
 
 If you also want content-driven commands such as `dbmulti` or `dbmultifile`, continue with the optional Webiny section below. The same commands can also read from local `offline/content/*.json` files when you are not using Webiny yet.
+
+## Optional: Sitemap
+
+You do not need `sitemap.xml` automation to use S3TE. If you want it, S3TE can maintain one `sitemap.xml` per published output bucket through a dedicated Lambda, just like the older 2.x generation.
+
+<details>
+  <summary>Enable sitemap maintenance</summary>
+
+Add this block to `s3te.config.json`:
+
+```json
+"integrations": {
+  "sitemap": {
+    "enabled": true,
+    "environments": {
+      "dev": {
+        "enabled": false
+      }
+    }
+  }
+}
+```
+
+The top-level `enabled` acts as the default. `integrations.sitemap.environments.<env>.enabled` can override that for a single environment.
+
+If you prefer the CLI path, this does the same retrofit:
+
+```bash
+npx s3te migrate --enable-sitemap --write
+npx s3te migrate --env test --enable-sitemap --write
+```
+
+After enabling or disabling `sitemap`, redeploy the affected environment once:
+
+```bash
+npx s3te deploy --env prod
+```
+
+</details>
+
+<details>
+  <summary>What the sitemap feature does</summary>
+
+When `sitemap` is enabled for an environment, S3TE adds one `sitemap-updater` Lambda to that environment stack and wires every output bucket to it for HTML create/delete events.
+
+The Lambda maintains `sitemap.xml` directly inside the same output bucket:
+
+- one sitemap per variant/language output bucket
+- only published HTML files are tracked
+- `404.html` is ignored
+- `index.html` becomes `https://example.com/`
+- nested `news/index.html` becomes `https://example.com/news/`
+- regular pages such as `about.html` stay `https://example.com/about.html`
+
+Because the trigger sits on the output bucket, the sitemap also stays correct when HTML is regenerated from Webiny content changes in AWS. Asset-only changes do not affect it.
+
+</details>
 
 ## Optional: Webiny CMS
 

@@ -64,6 +64,7 @@ Erlaubt, wenn fuer deterministische Lambda-ZIPs benoetigt:
 
 - eine kleine interne ZIP-Implementierung ohne Fremdpaket
 - AWS SDK v3 Module als gepackte Lambda-Runtime-Abhaengigkeit
+- ein kleiner XML-Parser fuer die optionale Sitemap-Lambda
 
 Nicht vorgesehen in V1:
 
@@ -104,7 +105,7 @@ Begruendung:
 
 - ein CloudFormation-Stack pro Umgebung
 - keine separaten Zusatz-Stacks fuer Sprache, Variante oder Webiny
-- optionale Ressourcen wie Webiny werden im selben Stack ueber die aufgeloeste Projektkonfiguration ein- oder ausgeschaltet
+- optionale Ressourcen wie Sitemap oder Webiny werden im selben Stack ueber die aufgeloeste Projektkonfiguration ein- oder ausgeschaltet
 
 Begruendung:
 

@@ -25,7 +25,8 @@ const RUNTIME_PACKAGE_DEPENDENCIES = [
   "@aws-sdk/client-sfn",
   "@aws-sdk/client-ssm",
   "@aws-sdk/lib-dynamodb",
-  "@aws-sdk/util-dynamodb"
+  "@aws-sdk/util-dynamodb",
+  "fast-xml-parser"
 ];
 const INTERNAL_RUNTIME_DIRECTORIES = [
   {
@@ -226,6 +227,9 @@ export async function packageAwsProject({
   if (features.includes("webiny") && !runtimeConfig.integrations.webiny.enabled) {
     throw new S3teError("ADAPTER_ERROR", "Feature webiny was requested but is not enabled in s3te.config.json.");
   }
+  if (features.includes("sitemap") && !runtimeConfig.integrations.sitemap.enabled) {
+    throw new S3teError("ADAPTER_ERROR", "Feature sitemap was requested but is not enabled in s3te.config.json.");
+  }
 
   const resolvedFeatures = resolveRequestedFeatures(config, features, environment);
   const packageDir = outDir
@@ -267,6 +271,11 @@ export async function packageAwsProject({
       archive: path.join(lambdaDir, "content-mirror.zip"),
       parameter: "ContentMirrorArtifactKey",
       s3Key: `lambda/content-mirror.zip`
+    },
+    sitemapUpdater: {
+      archive: path.join(lambdaDir, "sitemap-updater.zip"),
+      parameter: "SitemapUpdaterArtifactKey",
+      s3Key: "lambda/sitemap-updater.zip"
     }
   };
 

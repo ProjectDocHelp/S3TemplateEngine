@@ -186,6 +186,7 @@ flowchart TD
 - synchronisiert aktuelle Projektquellen in die Code-Buckets einer bestehenden AWS-Umgebung
 - verwendet `aws s3 sync --delete`, damit geloeschte Quellen Remove-Events ausloesen
 - ist der normale Publish-Schritt fuer Template-, Part- und Asset-Aenderungen
+- wenn `integrations.sitemap.enabled = true`, fuehren veraenderte HTML-Outputs in AWS danach automatisch zu einer aktualisierten `sitemap.xml`
 
 ### `s3te deploy`
 
@@ -203,6 +204,7 @@ flowchart TD
 ### `s3te migrate`
 
 - aktualisiert die Projektkonfiguration auf den aktuellen S3TE-Stand
+- kann optionale Retrofit-Schalter wie `sitemap` oder Webiny in bestehende Projekte schreiben
 - darf Migrationshinweise und manuelle Nacharbeiten ausgeben
 
 ## Projektannahmen fuer README und Scaffolds

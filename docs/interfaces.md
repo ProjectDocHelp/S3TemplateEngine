@@ -79,6 +79,12 @@ export interface AwsConfig {
 }
 
 export interface IntegrationsConfig {
+  sitemap?: {
+    enabled?: boolean;
+    environments?: Record<string, {
+      enabled?: boolean;
+    }>;
+  };
   webiny?: {
     enabled?: boolean;
     sourceTableName?: string;
@@ -169,6 +175,12 @@ export interface ResolvedAwsConfig {
 }
 
 export interface ResolvedIntegrationsConfig {
+  sitemap: {
+    enabled: boolean;
+    environments: Record<string, {
+      enabled?: boolean;
+    }>;
+  };
   webiny: {
     enabled: boolean;
     sourceTableName?: string;
@@ -425,18 +437,63 @@ Der AWS-Adapter darf zusaetzlich mit einem aufgeloesten Runtime-Manifest arbeite
 
 ```ts
 export interface AwsRuntimeManifest {
+  version: number;
+  generatedAt: string;
+  project: {
+    name: string;
+    displayName?: string;
+  };
   environments: Record<string, {
-    integrations?: {
-      webiny?: {
+    name: string;
+    awsRegion: string;
+    stackPrefix: string;
+    stackName: string;
+    runtimeParameterName: string;
+    rendering: {
+      minifyHtml: boolean;
+      renderExtensions: string[];
+      maxRenderDepth: number;
+    };
+    tables: {
+      dependency: string;
+      content: string;
+      contentIdIndexName: string;
+      invalidation: string;
+    };
+    functions: {
+      sourceDispatcher: string;
+      renderWorker: string;
+      invalidationScheduler: string;
+      invalidationExecutor: string;
+      contentMirror: string;
+      sitemapUpdater: string;
+    };
+    integrations: {
+      sitemap: {
+        enabled: boolean;
+      };
+      webiny: {
+        enabled: boolean;
+        sourceTableName?: string;
+        mirrorTableName?: string;
+        relevantModels: string[];
         tenant?: string;
       };
     };
     variants: Record<string, {
+      sourceDir: string;
+      partDir: string;
+      defaultLanguage: string;
+      routing: {
+        indexDocument: string;
+        notFoundDocument: string;
+      };
       codeBucket: string;
       languages: Record<string, {
         targetBucket: string;
         distributionId: string;
-        distributionAliases: string[];
+        distributionDomainName: string;
+        cloudFrontAliases: string[];
         baseUrl: string;
         webinyLocale: string;
       }>;
@@ -573,6 +630,16 @@ Input:
 Output:
 
 - genau eine gebuendelte CloudFront-Invalidierung
+
+### Sitemap Updater
+
+Input:
+
+- AWS S3 Event aus einem Output-Bucket
+
+Output:
+
+- aktualisierte `sitemap.xml` im selben Output-Bucket
 
 ## Fehlervertrag
 

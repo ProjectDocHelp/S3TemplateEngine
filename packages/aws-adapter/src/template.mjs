@@ -35,6 +35,26 @@ function lambdaCode(keyParameter) {
   };
 }
 
+function buildSitemapNotificationConfigurations(functionLogicalId) {
+  const suffixes = [".html", ".htm"];
+  const events = ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"];
+
+  return events.flatMap((eventName) => suffixes.map((suffix) => ({
+    Event: eventName,
+    Function: { "Fn::GetAtt": [functionLogicalId, "Arn"] },
+    Filter: {
+      S3Key: {
+        Rules: [
+          {
+            Name: "suffix",
+            Value: suffix
+          }
+        ]
+      }
+    }
+  })));
+}
+
 function lambdaRuntimeProperties(runtimeConfig, roleRef, name, keyParameter, handlerName, extra = {}) {
   return {
     Type: "AWS::Lambda::Function",
@@ -117,7 +137,8 @@ export function buildCloudFormationTemplate({ config, environment, features = []
     renderWorker: `${runtimeConfig.stackPrefix}_s3te_render_worker`,
     invalidationScheduler: `${runtimeConfig.stackPrefix}_s3te_invalidation_scheduler`,
     invalidationExecutor: `${runtimeConfig.stackPrefix}_s3te_invalidation_executor`,
-    contentMirror: `${runtimeConfig.stackPrefix}_s3te_content_mirror`
+    contentMirror: `${runtimeConfig.stackPrefix}_s3te_content_mirror`,
+    sitemapUpdater: `${runtimeConfig.stackPrefix}_s3te_sitemap_updater`
   };
 
   const parameters = {
@@ -137,6 +158,10 @@ export function buildCloudFormationTemplate({ config, environment, features = []
       Type: "String"
     },
     ContentMirrorArtifactKey: {
+      Type: "String",
+      Default: ""
+    },
+    SitemapUpdaterArtifactKey: {
       Type: "String",
       Default: ""
     },
@@ -369,6 +394,26 @@ export function buildCloudFormationTemplate({ config, environment, features = []
     };
   }
 
+  if (featureSet.has("sitemap") && runtimeConfig.integrations.sitemap.enabled) {
+    resources.SitemapUpdater = lambdaRuntimeProperties(
+      runtimeConfig,
+      "ExecutionRole",
+      functionNames.sitemapUpdater,
+      "SitemapUpdaterArtifactKey",
+      "sitemap-updater",
+      {
+        Timeout: 300,
+        MemorySize: 512,
+        Environment: {
+          Variables: {
+            S3TE_ENVIRONMENT: environment,
+            S3TE_RUNTIME_PARAMETER: runtimeConfig.runtimeParameterName
+          }
+        }
+      }
+    );
+  }
+
   outputs.StackName = { Value: runtimeConfig.stackName };
   outputs.RuntimeManifestParameterName = {
     Value: runtimeConfig.runtimeParameterName
@@ -383,6 +428,9 @@ export function buildCloudFormationTemplate({ config, environment, features = []
 
   if (resources.ContentMirror) {
     outputs.ContentMirrorFunctionName = { Value: functionNames.contentMirror };
+  }
+  if (resources.SitemapUpdater) {
+    outputs.SitemapUpdaterFunctionName = { Value: functionNames.sitemapUpdater };
   }
 
   for (const [variantName, variantConfig] of Object.entries(runtimeConfig.variants)) {
@@ -417,12 +465,20 @@ export function buildCloudFormationTemplate({ config, environment, features = []
 
       resources[outputBucketLogicalId] = {
         Type: "AWS::S3::Bucket",
+        ...(resources.SitemapUpdater ? { DependsOn: ["SitemapUpdaterPermission"] } : {}),
         Properties: {
           BucketName: languageConfig.targetBucket,
           WebsiteConfiguration: {
             IndexDocument: variantConfig.routing.indexDocument,
             ErrorDocument: variantConfig.routing.notFoundDocument
           },
+          ...(resources.SitemapUpdater
+            ? {
+                NotificationConfiguration: {
+                  LambdaConfigurations: buildSitemapNotificationConfigurations("SitemapUpdater")
+                }
+              }
+            : {}),
           PublicAccessBlockConfiguration: {
             BlockPublicAcls: false,
             BlockPublicPolicy: false,
@@ -543,6 +599,17 @@ export function buildCloudFormationTemplate({ config, environment, features = []
       Principal: "s3.amazonaws.com"
     }
   };
+
+  if (resources.SitemapUpdater) {
+    resources.SitemapUpdaterPermission = {
+      Type: "AWS::Lambda::Permission",
+      Properties: {
+        Action: "lambda:InvokeFunction",
+        FunctionName: { Ref: "SitemapUpdater" },
+        Principal: "s3.amazonaws.com"
+      }
+    };
+  }
 
   return {
     AWSTemplateFormatVersion: "2010-09-09",

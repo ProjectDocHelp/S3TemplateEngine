@@ -92,6 +92,71 @@ test("migrateProject can configure webiny per environment", async () => {
   assert.deepEqual(migration.config.integrations.webiny.environments.test.relevantModels, ["staticContent", "staticCodeContent", "article"]);
 });
 
+test("migrateProject can retrofit sitemap onto an existing S3TE config", async () => {
+  const migration = await migrateProject("s3te.config.json", {
+    project: {
+      name: "mysite"
+    },
+    environments: {
+      dev: {
+        awsRegion: "eu-central-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/test"
+      }
+    },
+    variants: {
+      website: {
+        defaultLanguage: "en",
+        languages: {
+          en: {
+            baseUrl: "example.com",
+            cloudFrontAliases: ["example.com"]
+          }
+        }
+      }
+    }
+  }, {
+    enableSitemap: true
+  });
+
+  assert.equal(migration.config.integrations.sitemap.enabled, true);
+  assert.ok(migration.changes.some((change) => /Enabled sitemap integration/.test(change)));
+});
+
+test("migrateProject can configure sitemap per environment", async () => {
+  const migration = await migrateProject("s3te.config.json", {
+    project: {
+      name: "mysite"
+    },
+    environments: {
+      test: {
+        awsRegion: "eu-central-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/test"
+      },
+      prod: {
+        awsRegion: "eu-central-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/prod"
+      }
+    },
+    variants: {
+      website: {
+        defaultLanguage: "en",
+        languages: {
+          en: {
+            baseUrl: "example.com",
+            cloudFrontAliases: ["example.com"]
+          }
+        }
+      }
+    }
+  }, {
+    environment: "test",
+    enableSitemap: true
+  });
+
+  assert.equal(migration.config.integrations.sitemap.environments.test.enabled, true);
+  assert.ok(migration.changes.some((change) => /for environment test/.test(change)));
+});
+
 test("validateProject rejects an unknown environment with a clear error", async () => {
   const validation = await validateProject(process.cwd(), {
     environments: {

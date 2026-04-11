@@ -5,6 +5,7 @@ import {
   resolveBaseUrl,
   resolveCloudFrontAliases,
   resolveCodeBucketName,
+  resolveEnvironmentSitemapIntegration,
   resolveEnvironmentWebinyIntegration,
   resolveProjectConfig,
   resolveTargetBucketName,
@@ -203,6 +204,52 @@ test("config resolves webiny overrides per environment", () => {
   });
 });
 
+test("config resolves sitemap overrides per environment", () => {
+  const config = resolveProjectConfig({
+    project: {
+      name: "mysite"
+    },
+    environments: {
+      test: {
+        awsRegion: "eu-central-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/test"
+      },
+      prod: {
+        awsRegion: "eu-central-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/prod"
+      }
+    },
+    variants: {
+      website: {
+        defaultLanguage: "en",
+        languages: {
+          en: {
+            baseUrl: "example.com",
+            cloudFrontAliases: ["example.com"]
+          }
+        }
+      }
+    },
+    integrations: {
+      sitemap: {
+        enabled: false,
+        environments: {
+          test: {
+            enabled: true
+          }
+        }
+      }
+    }
+  });
+
+  assert.deepEqual(resolveEnvironmentSitemapIntegration(config, "prod"), {
+    enabled: false
+  });
+  assert.deepEqual(resolveEnvironmentSitemapIntegration(config, "test"), {
+    enabled: true
+  });
+});
+
 test("config validation rejects full URLs in host fields", async () => {
   const result = await validateAndResolveProjectConfig({
     project: {
@@ -271,4 +318,43 @@ test("config validation rejects webiny environments without a source table", asy
 
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((error) => /requires sourceTableName when enabled for environment test/.test(error.message)));
+});
+
+test("config validation rejects sitemap overrides for unknown environments", async () => {
+  const result = await validateAndResolveProjectConfig({
+    project: {
+      name: "mysite"
+    },
+    environments: {
+      prod: {
+        awsRegion: "eu-central-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/prod"
+      }
+    },
+    variants: {
+      website: {
+        defaultLanguage: "en",
+        languages: {
+          en: {
+            baseUrl: "example.com",
+            cloudFrontAliases: ["example.com"]
+          }
+        }
+      }
+    },
+    integrations: {
+      sitemap: {
+        environments: {
+          test: {
+            enabled: true
+          }
+        }
+      }
+    }
+  }, {
+    projectDir: "d:/Git/s3templateengine/examples/minimal-site"
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => /integrations\.sitemap\.environments\.test/.test(error.message)));
 });

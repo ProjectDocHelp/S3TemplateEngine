@@ -344,6 +344,7 @@ function buildEnvironmentStackParameters({
     `InvalidationSchedulerArtifactKey=${uploadedArtifacts.invalidationScheduler}`,
     `InvalidationExecutorArtifactKey=${uploadedArtifacts.invalidationExecutor}`,
     `ContentMirrorArtifactKey=${uploadedArtifacts.contentMirror}`,
+    `SitemapUpdaterArtifactKey=${uploadedArtifacts.sitemapUpdater}`,
     `RuntimeManifestValue=${runtimeManifestValue}`,
     `WebinySourceTableStreamArn=${webinyStreamArn}`
   ];
@@ -369,6 +370,9 @@ export async function deployAwsProject({
 
   if (requestedFeatureSet.has("webiny") && !runtimeConfig.integrations.webiny.enabled) {
     throw new S3teError("ADAPTER_ERROR", "Feature webiny was requested but is not enabled in s3te.config.json.");
+  }
+  if (requestedFeatureSet.has("sitemap") && !runtimeConfig.integrations.sitemap.enabled) {
+    throw new S3teError("ADAPTER_ERROR", "Feature sitemap was requested but is not enabled in s3te.config.json.");
   }
 
   await ensureAwsCliAvailable({ cwd: projectDir });

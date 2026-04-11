@@ -258,6 +258,9 @@ export function buildCoreConfigFromEnvironment(manifest, environmentName) {
         mirrorTableName: environment.integrations.webiny.mirrorTableName,
         relevantModels: [...environment.integrations.webiny.relevantModels],
         tenant: environment.integrations.webiny.tenant
+      },
+      sitemap: {
+        enabled: environment.integrations.sitemap?.enabled ?? false
       }
     }
   };

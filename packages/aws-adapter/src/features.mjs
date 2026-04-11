@@ -1,4 +1,7 @@
-import { resolveEnvironmentWebinyIntegration } from "../../core/src/index.mjs";
+import {
+  resolveEnvironmentSitemapIntegration,
+  resolveEnvironmentWebinyIntegration
+} from "../../core/src/index.mjs";
 
 export function getConfiguredFeatures(config, environment) {
   const features = [];
@@ -7,15 +10,24 @@ export function getConfiguredFeatures(config, environment) {
     if (resolveEnvironmentWebinyIntegration(config, environment).enabled) {
       features.push("webiny");
     }
+    if (resolveEnvironmentSitemapIntegration(config, environment).enabled) {
+      features.push("sitemap");
+    }
     return features;
   }
 
   const hasAnyEnvironmentWebiny = Object.keys(config.environments ?? {}).some((environmentName) => (
     resolveEnvironmentWebinyIntegration(config, environmentName).enabled
   ));
+  const hasAnyEnvironmentSitemap = Object.keys(config.environments ?? {}).some((environmentName) => (
+    resolveEnvironmentSitemapIntegration(config, environmentName).enabled
+  ));
 
   if (hasAnyEnvironmentWebiny) {
     features.push("webiny");
+  }
+  if (hasAnyEnvironmentSitemap) {
+    features.push("sitemap");
   }
 
   return features;

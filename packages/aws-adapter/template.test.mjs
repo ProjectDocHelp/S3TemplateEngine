@@ -52,6 +52,9 @@ function createConfig() {
       lambda: { runtime: "nodejs22.x", architecture: "arm64" }
     },
     integrations: {
+      sitemap: {
+        enabled: false
+      },
       webiny: {
         enabled: true,
         sourceTableName: "webiny-table",
@@ -154,6 +157,9 @@ test("cloudformation template derives non-prod aliases and bucket names from the
         lambda: { runtime: "nodejs22.x", architecture: "arm64" }
       },
       integrations: {
+        sitemap: {
+          enabled: false
+        },
         webiny: {
           enabled: false,
           relevantModels: ["staticContent", "staticCodeContent"]
@@ -170,6 +176,78 @@ test("cloudformation template derives non-prod aliases and bucket names from the
   assert.equal(template.Resources.appdeOutputBucket.Properties.BucketName, "test-app-sop");
   assert.deepEqual(template.Resources.websitedeDistribution.Properties.DistributionConfig.Aliases, ["test.schwimmbad-oberprechtal.de"]);
   assert.deepEqual(template.Resources.appdeDistribution.Properties.DistributionConfig.Aliases, ["test-app.schwimmbad-oberprechtal.de"]);
+});
+
+test("cloudformation template wires sitemap updates from output buckets when sitemap is enabled", () => {
+  const template = buildCloudFormationTemplate({
+    config: {
+      project: {
+        name: "mysite"
+      },
+      environments: {
+        prod: {
+          name: "prod",
+          awsRegion: "eu-central-1",
+          stackPrefix: "LIVE",
+          certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/live"
+        }
+      },
+      rendering: {
+        minifyHtml: true,
+        renderExtensions: [".html", ".htm", ".part"],
+        outputDir: "offline/S3TELocal/preview",
+        maxRenderDepth: 50
+      },
+      variants: {
+        website: {
+          name: "website",
+          sourceDir: "app/website",
+          partDir: "app/part",
+          defaultLanguage: "en",
+          routing: {
+            indexDocument: "index.html",
+            notFoundDocument: "404.html"
+          },
+          languages: {
+            en: {
+              code: "en",
+              baseUrl: "example.com",
+              targetBucket: "{envPrefix}website-{project}",
+              cloudFrontAliases: ["example.com"]
+            }
+          }
+        }
+      },
+      aws: {
+        codeBuckets: {
+          website: "{envPrefix}website-code-{project}"
+        },
+        dependencyStore: { tableName: "{stackPrefix}_s3te_dependencies_{project}" },
+        contentStore: { tableName: "{stackPrefix}_s3te_content_{project}", contentIdIndexName: "contentid" },
+        invalidationStore: { tableName: "{stackPrefix}_s3te_invalidations_{project}", debounceSeconds: 60 },
+        lambda: { runtime: "nodejs22.x", architecture: "arm64" }
+      },
+      integrations: {
+        sitemap: {
+          enabled: true
+        },
+        webiny: {
+          enabled: false,
+          relevantModels: ["staticContent", "staticCodeContent"]
+        }
+      }
+    },
+    environment: "prod",
+    features: ["sitemap"]
+  });
+
+  assert.ok(template.Parameters.SitemapUpdaterArtifactKey);
+  assert.ok(template.Resources.SitemapUpdater);
+  assert.ok(template.Resources.SitemapUpdaterPermission);
+  assert.equal(template.Resources.SitemapUpdater.Properties.Handler, "packages/aws-adapter/src/runtime/sitemap-updater.handler");
+  assert.equal(template.Resources.websiteenOutputBucket.DependsOn[0], "SitemapUpdaterPermission");
+  assert.equal(template.Resources.websiteenOutputBucket.Properties.NotificationConfiguration.LambdaConfigurations.length, 4);
+  assert.deepEqual(template.Outputs.SitemapUpdaterFunctionName.Value, "LIVE_s3te_sitemap_updater");
 });
 
 test("temporary deploy stack contains only the artifact bucket output", () => {

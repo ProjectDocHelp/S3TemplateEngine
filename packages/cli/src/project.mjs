@@ -335,6 +335,23 @@ function schemaTemplate() {
                 }
               }
             }
+          },
+          sitemap: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              enabled: { type: "boolean" },
+              environments: {
+                type: "object",
+                additionalProperties: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    enabled: { type: "boolean" }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -986,6 +1003,8 @@ export async function migrateProject(configPath, rawConfig, writeChanges) {
 
   const enableWebiny = Boolean(options.enableWebiny);
   const disableWebiny = Boolean(options.disableWebiny);
+  const enableSitemap = Boolean(options.enableSitemap);
+  const disableSitemap = Boolean(options.disableSitemap);
   const targetEnvironment = options.environment ? String(options.environment).trim() : "";
   const webinySourceTable = options.webinySourceTable ? String(options.webinySourceTable).trim() : "";
   const webinyTenant = options.webinyTenant ? String(options.webinyTenant).trim() : "";
@@ -993,6 +1012,9 @@ export async function migrateProject(configPath, rawConfig, writeChanges) {
 
   if (enableWebiny && disableWebiny) {
     throw new S3teError("CONFIG_CONFLICT_ERROR", "migrate does not allow --enable-webiny and --disable-webiny at the same time.");
+  }
+  if (enableSitemap && disableSitemap) {
+    throw new S3teError("CONFIG_CONFLICT_ERROR", "migrate does not allow --enable-sitemap and --disable-sitemap at the same time.");
   }
 
   const touchesWebiny = enableWebiny || disableWebiny || Boolean(webinySourceTable) || Boolean(webinyTenant) || webinyModels.length > 0;
@@ -1074,6 +1096,48 @@ export async function migrateProject(configPath, rawConfig, writeChanges) {
     if (webinyModels.length > 0) {
       changes.push(`Added Webiny models${scopeLabel}: ${webinyModels.join(", ")}.`);
     }
+  }
+
+  const touchesSitemap = enableSitemap || disableSitemap;
+  if (touchesSitemap) {
+    if (targetEnvironment && !nextConfig.environments?.[targetEnvironment]) {
+      throw new S3teError("CONFIG_CONFLICT_ERROR", `Unknown environment for migrate: ${targetEnvironment}.`);
+    }
+
+    const existingIntegrations = nextConfig.integrations ?? {};
+    const existingSitemap = existingIntegrations.sitemap ?? {};
+    const existingEnvironmentOverrides = existingSitemap.environments ?? {};
+    const existingTargetSitemap = targetEnvironment
+      ? (existingEnvironmentOverrides[targetEnvironment] ?? {})
+      : existingSitemap;
+    const nextEnabled = disableSitemap
+      ? false
+      : (enableSitemap || Boolean(targetEnvironment
+          ? (existingTargetSitemap.enabled ?? existingSitemap.enabled)
+          : existingSitemap.enabled));
+
+    nextConfig.integrations = {
+      ...existingIntegrations,
+      sitemap: targetEnvironment
+        ? {
+            ...existingSitemap,
+            environments: {
+              ...existingEnvironmentOverrides,
+              [targetEnvironment]: {
+                ...existingTargetSitemap,
+                enabled: nextEnabled
+              }
+            }
+          }
+        : {
+            ...existingSitemap,
+            enabled: nextEnabled,
+            environments: existingEnvironmentOverrides
+          }
+    };
+
+    const scopeLabel = targetEnvironment ? ` for environment ${targetEnvironment}` : "";
+    changes.push(nextEnabled ? `Enabled sitemap integration${scopeLabel}.` : `Disabled sitemap integration${scopeLabel}.`);
   }
 
   if (options.writeChanges) {

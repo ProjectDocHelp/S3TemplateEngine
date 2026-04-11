@@ -30,7 +30,8 @@ function buildFunctionNames(runtimeConfig) {
     renderWorker: `${runtimeConfig.stackPrefix}_s3te_render_worker`,
     invalidationScheduler: `${runtimeConfig.stackPrefix}_s3te_invalidation_scheduler`,
     invalidationExecutor: `${runtimeConfig.stackPrefix}_s3te_invalidation_executor`,
-    contentMirror: runtimeConfig.integrations.webiny.enabled ? `${runtimeConfig.stackPrefix}_s3te_content_mirror` : ""
+    contentMirror: runtimeConfig.integrations.webiny.enabled ? `${runtimeConfig.stackPrefix}_s3te_content_mirror` : "",
+    sitemapUpdater: runtimeConfig.integrations.sitemap.enabled ? `${runtimeConfig.stackPrefix}_s3te_sitemap_updater` : ""
   };
 }
 
@@ -79,6 +80,9 @@ export function buildAwsRuntimeManifest({ config, environment, stackOutputs = {}
             mirrorTableName: runtimeConfig.integrations.webiny.mirrorTableName,
             relevantModels: [...runtimeConfig.integrations.webiny.relevantModels],
             tenant: runtimeConfig.integrations.webiny.tenant
+          },
+          sitemap: {
+            enabled: runtimeConfig.integrations.sitemap.enabled
           }
         },
         variants: runtimeConfig.variants

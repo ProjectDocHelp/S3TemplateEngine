@@ -328,14 +328,39 @@ Logisches Modell:
 
 ```ts
 export interface AwsRuntimeManifest {
+  version: number;
+  generatedAt: string;
+  project: {
+    name: string;
+    displayName?: string;
+  };
   environments: Record<string, {
+    functions: {
+      sourceDispatcher: string;
+      renderWorker: string;
+      invalidationScheduler: string;
+      invalidationExecutor: string;
+      contentMirror: string;
+      sitemapUpdater: string;
+    };
+    integrations: {
+      sitemap: {
+        enabled: boolean;
+      };
+      webiny: {
+        enabled: boolean;
+        tenant?: string;
+      };
+    };
     variants: Record<string, {
       codeBucket: string;
       languages: Record<string, {
         targetBucket: string;
         distributionId: string;
-        distributionAliases: string[];
+        distributionDomainName: string;
+        cloudFrontAliases: string[];
         baseUrl: string;
+        webinyLocale: string;
       }>;
     }>;
   }>;

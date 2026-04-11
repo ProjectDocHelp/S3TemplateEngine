@@ -6,7 +6,7 @@ Dieses Dokument definiert die fachlichen und technischen Anforderungen fuer eine
 
 ## Produktziel
 
-S3TemplateEngine (S3TE) bleibt eine ultra-leichte, serverless Engine fuer statische Websites und webartige Frontends auf AWS. Die Engine rendert HTML-basierte Templates, publiziert Build-Artefakte in S3, invalidiert CloudFront und kann optional Inhalte aus Webiny spiegeln.
+S3TemplateEngine (S3TE) bleibt eine ultra-leichte, serverless Engine fuer statische Websites und webartige Frontends auf AWS. Die Engine rendert HTML-basierte Templates, publiziert Build-Artefakte in S3, invalidiert CloudFront, kann optional `sitemap.xml` pflegen und kann optional Inhalte aus Webiny spiegeln.
 
 ## Nicht-Ziele
 
@@ -90,6 +90,7 @@ S3TemplateEngine (S3TE) bleibt eine ultra-leichte, serverless Engine fuer statis
 - Der AWS-Adapter reagiert auf S3- und optionale Content-Events.
 - Zielobjekte werden in S3 publiziert.
 - CloudFront-Invalidierungen werden entkoppelt und gebuendelt.
+- Optionale Laufzeitfeatures wie Sitemap oder Webiny muessen ueber denselben Environment-Stack aktivierbar sein.
 - CloudFormation bleibt fuer die erste Rewrite-Generation ein unterstuetztes Deployment-Ziel.
 - `s3te deploy --env <name>` rollt die Infrastruktur aus und synchronisiert die aktuellen Projektquellen in die konfigurierten Code-Buckets.
 - `s3te sync --env <name>` synchronisiert aktuelle Projektquellen in eine bereits vorhandene Umgebung, ohne CloudFormation erneut auszurollen.
@@ -123,6 +124,7 @@ Weitere CLI-Anforderungen:
 - Das ausfuehrbare Binary heisst `s3te`.
 - Die CLI muss sowohl lokal als Projekt-Dependency als auch global installierbar sein.
 - `s3te init` erzeugt eine lauffaehige Projektstruktur mit `s3te.config.json`, Template-Ordnern und optionalen VSCode-Empfehlungen.
+- `s3te migrate` darf optionale Retrofit-Konfigurationen wie `sitemap` oder Webiny in bestehende Projekte schreiben.
 
 ## Nicht-funktionale Anforderungen
 

@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  resolveBaseUrl,
+  resolveCloudFrontAliases,
   resolveCodeBucketName,
   resolveProjectConfig,
   resolveTargetBucketName,
@@ -45,14 +47,67 @@ test("config resolves placeholders per environment instead of leaking the last e
 
   const config = resolveProjectConfig(rawConfig);
   assert.equal(resolveCodeBucketName(config, "dev", "website"), "dev-website-code-mysite");
-  assert.equal(resolveCodeBucketName(config, "prod", "website"), "prod-website-code-mysite");
+  assert.equal(resolveCodeBucketName(config, "prod", "website"), "website-code-mysite");
   assert.equal(resolveTargetBucketName(config, "dev", "website", "en"), "dev-website-mysite");
-  assert.equal(resolveTargetBucketName(config, "prod", "website", "de"), "prod-website-mysite-de");
+  assert.equal(resolveTargetBucketName(config, "prod", "website", "de"), "website-mysite-de");
+  assert.equal(resolveBaseUrl(config, "dev", "website", "en"), "dev.example.com");
+  assert.equal(resolveBaseUrl(config, "prod", "website", "en"), "example.com");
+  assert.deepEqual(resolveCloudFrontAliases(config, "dev", "website", "en"), ["dev.example.com"]);
+  assert.deepEqual(resolveCloudFrontAliases(config, "prod", "website", "de"), ["example.de"]);
 
   const devTables = resolveTableNames(config, "dev");
   const prodTables = resolveTableNames(config, "prod");
   assert.equal(devTables.content, "DEV_s3te_content_mysite");
   assert.equal(prodTables.content, "PROD_s3te_content_mysite");
+});
+
+test("config derives environment-prefixed public hosts for non-prod environments", () => {
+  const config = resolveProjectConfig({
+    project: {
+      name: "sop"
+    },
+    environments: {
+      test: {
+        awsRegion: "eu-west-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/test"
+      },
+      prod: {
+        awsRegion: "eu-west-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/prod"
+      }
+    },
+    variants: {
+      website: {
+        defaultLanguage: "de",
+        languages: {
+          de: {
+            baseUrl: "schwimmbad-oberprechtal.de",
+            cloudFrontAliases: ["schwimmbad-oberprechtal.de"]
+          }
+        }
+      },
+      app: {
+        defaultLanguage: "de",
+        languages: {
+          de: {
+            baseUrl: "app.schwimmbad-oberprechtal.de",
+            cloudFrontAliases: ["app.schwimmbad-oberprechtal.de"]
+          }
+        }
+      }
+    }
+  });
+
+  assert.equal(resolveBaseUrl(config, "prod", "website", "de"), "schwimmbad-oberprechtal.de");
+  assert.equal(resolveBaseUrl(config, "test", "website", "de"), "test.schwimmbad-oberprechtal.de");
+  assert.equal(resolveBaseUrl(config, "prod", "app", "de"), "app.schwimmbad-oberprechtal.de");
+  assert.equal(resolveBaseUrl(config, "test", "app", "de"), "test.app.schwimmbad-oberprechtal.de");
+  assert.deepEqual(resolveCloudFrontAliases(config, "test", "website", "de"), ["test.schwimmbad-oberprechtal.de"]);
+  assert.deepEqual(resolveCloudFrontAliases(config, "test", "app", "de"), ["test.app.schwimmbad-oberprechtal.de"]);
+  assert.equal(resolveCodeBucketName(config, "prod", "website"), "website-code-sop");
+  assert.equal(resolveCodeBucketName(config, "test", "website"), "test-website-code-sop");
+  assert.equal(resolveTargetBucketName(config, "prod", "app", "de"), "app-sop");
+  assert.equal(resolveTargetBucketName(config, "test", "app", "de"), "test-app-sop");
 });
 
 test("config validation rejects unknown placeholders", async () => {
@@ -86,4 +141,35 @@ test("config validation rejects unknown placeholders", async () => {
 
   assert.equal(result.ok, false);
   assert.match(result.errors[0].code, /CONFIG_PLACEHOLDER_ERROR/);
+});
+
+test("config validation rejects full URLs in host fields", async () => {
+  const result = await validateAndResolveProjectConfig({
+    project: {
+      name: "mysite"
+    },
+    environments: {
+      prod: {
+        awsRegion: "eu-central-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/prod"
+      }
+    },
+    variants: {
+      website: {
+        defaultLanguage: "de",
+        languages: {
+          de: {
+            baseUrl: "https://example.com/",
+            cloudFrontAliases: ["https://example.com/"]
+          }
+        }
+      }
+    }
+  }, {
+    projectDir: "d:/Git/s3templateengine/examples/minimal-site"
+  });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => /baseUrl must be a hostname/.test(error.message)));
+  assert.ok(result.errors.some((error) => /cloudFrontAliases must contain hostnames/.test(error.message)));
 });

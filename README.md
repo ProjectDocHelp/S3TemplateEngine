@@ -6,14 +6,19 @@ This README is the user guide for the rewrite generation. The deeper implementat
 
 ## Table of Contents
 
-1. [Motivation](#motivation)
-2. [Support](#support)
-3. [Concept](#concept)
-4. [Installation (AWS)](#installation-aws)
-5. [Installation (VSCode)](#installation-vscode)
-6. [Installation (S3TE)](#installation-s3te)
-7. [Usage](#usage)
-8. [Optional: Webiny CMS](#optional-webiny-cms)
+- [S3TemplateEngine](#s3templateengine)
+  - [Table of Contents](#table-of-contents)
+  - [Motivation](#motivation)
+  - [Support](#support)
+  - [Concept](#concept)
+  - [Installation (AWS)](#installation-aws)
+  - [Installation (VSCode)](#installation-vscode)
+  - [Installation (S3TE)](#installation-s3te)
+  - [Usage](#usage)
+    - [Daily Workflow](#daily-workflow)
+    - [CLI Commands](#cli-commands)
+    - [Template Commands](#template-commands)
+  - [Optional: Webiny CMS](#optional-webiny-cms)
 
 ## Motivation
 
@@ -152,26 +157,13 @@ With the local package installed, initialize the project like this:
 npx s3te init --project-name mywebsite --base-url example.com
 ```
 
-If `npm install` already created a minimal `package.json`, `s3te init` extends it with the missing S3TE defaults and scripts instead of failing.
+You can safely run `s3te init` more than once. If `npm install` already created a minimal `package.json`, `s3te init` extends it with the missing S3TE defaults and scripts instead of failing. An existing `s3te.config.json` is completed with missing scaffold defaults, explicit `--project-name` and `--base-url` values are refreshed on re-run, and the generated schema file is updated to the current package version. Existing content files and templates stay untouched unless you use `--force`.
 
 If you want a one-shot scaffold without installing first, and `@projectdochelp/s3te` is already published on npm, this also works:
 
 ```bash
 npx --package @projectdochelp/s3te s3te init --project-name mywebsite --base-url example.com
 ```
-
-That command only works after a real npm publish. A GitHub repository on its own is not enough.
-
-If you are still working from this repository before the first npm publish, run the CLI directly from the repo root instead:
-
-```bash
-node packages/cli/bin/s3te.mjs init --dir ./mywebsite --project-name mywebsite --base-url example.com
-```
-
-</details>
-
-<details>
-  <summary>4. What the scaffold creates</summary>
 
 The default scaffold creates:
 
@@ -198,7 +190,7 @@ mywebsite/
 </details>
 
 <details>
-  <summary>5. Fill in the real AWS values in <code>s3te.config.json</code></summary>
+  <summary>4. Fill in the real AWS values in <code>s3te.config.json</code></summary>
 
 The most important fields for a first deployment are:
 
@@ -227,10 +219,12 @@ The most important fields for a first deployment are:
 
 `route53HostedZoneId` is optional. Leave it out if you want to manage DNS yourself.
 
+Use plain hostnames in `baseUrl` and `cloudFrontAliases`, not full URLs. If your config contains a `prod` environment plus additional environments such as `test` or `stage`, S3TE keeps the `prod` hostname unchanged and derives non-production hostnames automatically by prepending `<env>.`.
+
 </details>
 
 <details>
-  <summary>6. Run the first local check and deploy</summary>
+  <summary>5. Run the first local check and deploy</summary>
 
 ```bash
 npx s3te validate

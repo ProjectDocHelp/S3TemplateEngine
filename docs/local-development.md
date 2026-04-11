@@ -88,7 +88,7 @@ Der Befehl:
 s3te init
 ```
 
-Wenn `npm install` bereits eine `package.json` erzeugt hat, ergaenzt `s3te init` sie um fehlende S3TE-Defaults, statt sie pauschal abzulehnen.
+`s3te init` darf gefahrlos mehrfach im selben Projekt laufen. Wenn `npm install` bereits eine `package.json` erzeugt hat, ergaenzt `s3te init` sie um fehlende S3TE-Defaults, eine vorhandene `s3te.config.json` wird um fehlende Scaffold-Werte ergaenzt, die von S3TE erzeugte Schema-Datei wird auf die aktuelle Paketversion aktualisiert, `--base-url` wird auf einen Hostnamen normalisiert, und bestehende Scaffold-Dateien bleiben ohne `--force` unveraendert.
 
 erzeugt mindestens diese Struktur:
 

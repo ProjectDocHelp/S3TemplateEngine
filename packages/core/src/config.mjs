@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { assert, S3teError } from "./errors.mjs";
 
-const KNOWN_PLACEHOLDERS = new Set(["env", "stackPrefix", "project", "variant", "lang"]);
+const KNOWN_PLACEHOLDERS = new Set(["env", "envPrefix", "stackPrefix", "project", "variant", "lang"]);
 
 function upperSnakeCase(value) {
   return value.replace(/-/g, "_").toUpperCase();
@@ -28,7 +28,7 @@ function ensureKnownPlaceholders(input, fieldPath, errors) {
 }
 
 function replacePlaceholders(input, values) {
-  return String(input).replace(/\{(env|stackPrefix|project|variant|lang)\}/g, (_, token) => values[token]);
+  return String(input).replace(/\{(env|envPrefix|stackPrefix|project|variant|lang)\}/g, (_, token) => values[token]);
 }
 
 function normalizeRelativeProjectPath(relativePath) {
@@ -46,12 +46,50 @@ function isValidUpperSnake(value) {
   return /^[A-Z0-9_]+$/.test(value);
 }
 
-function defaultTargetBucketPattern({ variant, language, languageCount, isDefaultLanguage, project }) {
-  if (languageCount === 1 || isDefaultLanguage) {
-    return `{env}-${variant}-${project}`;
+function isProductionEnvironment(environmentName) {
+  return String(environmentName).trim().toLowerCase() === "prod";
+}
+
+function hasProductionEnvironment(config) {
+  return Object.keys(config.environments ?? {}).some((environmentName) => isProductionEnvironment(environmentName));
+}
+
+function environmentResourcePrefix(environmentName) {
+  return isProductionEnvironment(environmentName) ? "" : `${environmentName}-`;
+}
+
+function environmentHostPrefix(config, environmentName) {
+  if (!hasProductionEnvironment(config) || isProductionEnvironment(environmentName)) {
+    return "";
   }
 
-  return `{env}-${variant}-${project}-${language}`;
+  return `${environmentName}.`;
+}
+
+function prefixHostForEnvironment(config, host, environmentName) {
+  const prefix = environmentHostPrefix(config, environmentName);
+  if (!prefix) {
+    return host;
+  }
+
+  return host.startsWith(prefix) ? host : `${prefix}${host}`;
+}
+
+function isValidConfiguredHost(value) {
+  const candidate = String(value).trim();
+  if (!candidate || candidate.includes("://") || candidate.includes("/") || candidate.includes(":")) {
+    return false;
+  }
+
+  return /^[A-Za-z0-9.-]+$/.test(candidate);
+}
+
+function defaultTargetBucketPattern({ variant, language, languageCount, isDefaultLanguage, project }) {
+  if (languageCount === 1 || isDefaultLanguage) {
+    return `{envPrefix}${variant}-${project}`;
+  }
+
+  return `{envPrefix}${variant}-${project}-${language}`;
 }
 
 async function ensureDirectoryExists(projectDir, relativePath, errors) {
@@ -79,6 +117,7 @@ function createPlaceholderContext(config, environmentName, variantName, language
   const variantConfig = variantName ? config.variants[variantName] : null;
   return {
     env: environmentName,
+    envPrefix: environmentResourcePrefix(environmentName),
     stackPrefix: environmentConfig.stackPrefix,
     project: config.project.name,
     variant: variantName ?? "website",
@@ -148,7 +187,7 @@ export function resolveProjectConfig(projectConfig) {
       languages
     };
 
-    awsCodeBuckets[variantName] = awsCodeBuckets[variantName] ?? "{env}-{variant}-code-{project}";
+    awsCodeBuckets[variantName] = awsCodeBuckets[variantName] ?? "{envPrefix}{variant}-code-{project}";
   }
 
   const aws = {
@@ -219,6 +258,19 @@ export function resolveTargetBucketName(config, environmentName, variantName, la
   );
 }
 
+export function resolveBaseUrl(config, environmentName, variantName, languageCode) {
+  return prefixHostForEnvironment(
+    config,
+    config.variants[variantName].languages[languageCode].baseUrl,
+    environmentName
+  );
+}
+
+export function resolveCloudFrontAliases(config, environmentName, variantName, languageCode) {
+  return config.variants[variantName].languages[languageCode].cloudFrontAliases
+    .map((alias) => prefixHostForEnvironment(config, alias, environmentName));
+}
+
 export function resolveTableNames(config, environmentName) {
   const context = createPlaceholderContext(config, environmentName);
   return {
@@ -249,11 +301,13 @@ export function buildEnvironmentRuntimeConfig(config, environmentName, stackOutp
     const languages = {};
     for (const [languageCode, languageConfig] of Object.entries(variantConfig.languages)) {
       const targetBucket = resolveTargetBucketName(config, environmentName, variantName, languageCode);
+      const baseUrl = resolveBaseUrl(config, environmentName, variantName, languageCode);
+      const cloudFrontAliases = resolveCloudFrontAliases(config, environmentName, variantName, languageCode);
       languages[languageCode] = {
         code: languageCode,
-        baseUrl: languageConfig.baseUrl,
+        baseUrl,
         targetBucket,
-        cloudFrontAliases: [...languageConfig.cloudFrontAliases],
+        cloudFrontAliases,
         webinyLocale: languageConfig.webinyLocale,
         distributionId: stackOutputs.distributionIds?.[variantName]?.[languageCode] ?? "",
         distributionDomainName: stackOutputs.distributionDomains?.[variantName]?.[languageCode] ?? ""
@@ -363,12 +417,28 @@ export async function validateAndResolveProjectConfig(projectConfig, options = {
           code: "CONFIG_SCHEMA_ERROR",
           message: `Variant ${variantName} language ${languageCode} is missing baseUrl.`
         });
+      } else if (!isValidConfiguredHost(languageConfig.baseUrl)) {
+        errors.push({
+          code: "CONFIG_SCHEMA_ERROR",
+          message: `Variant ${variantName} language ${languageCode} baseUrl must be a hostname without protocol or path.`,
+          details: { value: languageConfig.baseUrl }
+        });
       }
       if (!Array.isArray(languageConfig.cloudFrontAliases) || languageConfig.cloudFrontAliases.length === 0) {
         errors.push({
           code: "CONFIG_SCHEMA_ERROR",
           message: `Variant ${variantName} language ${languageCode} needs at least one cloudFrontAlias.`
         });
+      } else {
+        for (const alias of languageConfig.cloudFrontAliases) {
+          if (!isValidConfiguredHost(alias)) {
+            errors.push({
+              code: "CONFIG_SCHEMA_ERROR",
+              message: `Variant ${variantName} language ${languageCode} cloudFrontAliases must contain hostnames without protocol or path.`,
+              details: { value: alias }
+            });
+          }
+        }
       }
       if (languageConfig.webinyLocale !== undefined && typeof languageConfig.webinyLocale !== "string") {
         errors.push({
@@ -414,6 +484,7 @@ export async function validateAndResolveProjectConfig(projectConfig, options = {
   const resolvedConfig = resolveProjectConfig(projectConfig);
   const seenTargetBuckets = new Set();
   const seenCodeBuckets = new Set();
+  const seenCloudFrontAliases = new Set();
 
   for (const variantConfig of Object.values(resolvedConfig.variants)) {
     await ensureDirectoryExists(projectDir, variantConfig.sourceDir, errors);
@@ -452,6 +523,16 @@ export async function validateAndResolveProjectConfig(projectConfig, options = {
           });
         }
         seenTargetBuckets.add(targetBucket);
+
+        for (const alias of resolveCloudFrontAliases(resolvedConfig, environmentName, variantName, languageCode)) {
+          if (seenCloudFrontAliases.has(alias)) {
+            errors.push({
+              code: "CONFIG_CONFLICT_ERROR",
+              message: `Duplicate cloudFrontAlias ${alias}.`
+            });
+          }
+          seenCloudFrontAliases.add(alias);
+        }
       }
     }
   }

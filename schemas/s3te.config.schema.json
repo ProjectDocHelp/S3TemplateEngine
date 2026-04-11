@@ -33,10 +33,40 @@
         "additionalProperties": false,
         "required": ["awsRegion", "certificateArn"],
         "properties": {
-          "awsRegion": { "type": "string" },
-          "stackPrefix": { "type": "string" },
-          "certificateArn": { "type": "string" },
-          "route53HostedZoneId": { "type": "string" }
+          "awsRegion": {
+            "type": "string"
+          },
+          "stackPrefix": {
+            "type": "string"
+          },
+          "certificateArn": {
+            "type": "string"
+          },
+          "route53HostedZoneId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rendering": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "minifyHtml": {
+          "type": "boolean"
+        },
+        "renderExtensions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "outputDir": {
+          "type": "string"
+        },
+        "maxRenderDepth": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     },
@@ -44,18 +74,28 @@
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "additionalProperties": true,
+        "additionalProperties": false,
         "required": ["defaultLanguage", "languages"],
         "properties": {
-          "sourceDir": { "type": "string" },
-          "partDir": { "type": "string" },
-          "defaultLanguage": { "type": "string" },
+          "sourceDir": {
+            "type": "string"
+          },
+          "partDir": {
+            "type": "string"
+          },
+          "defaultLanguage": {
+            "type": "string"
+          },
           "routing": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "indexDocument": { "type": "string" },
-              "notFoundDocument": { "type": "string" }
+              "indexDocument": {
+                "type": "string"
+              },
+              "notFoundDocument": {
+                "type": "string"
+              }
             }
           },
           "languages": {
@@ -65,15 +105,83 @@
               "additionalProperties": false,
               "required": ["baseUrl", "cloudFrontAliases"],
               "properties": {
-                "baseUrl": { "type": "string" },
-                "targetBucket": { "type": "string" },
+                "baseUrl": {
+                  "type": "string"
+                },
+                "targetBucket": {
+                  "type": "string"
+                },
                 "cloudFrontAliases": {
                   "type": "array",
-                  "items": { "type": "string" },
+                  "items": {
+                    "type": "string"
+                  },
                   "minItems": 1
                 },
-                "webinyLocale": { "type": "string" }
+                "webinyLocale": {
+                  "type": "string"
+                }
               }
+            }
+          }
+        }
+      }
+    },
+    "aws": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "codeBuckets": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "dependencyStore": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tableName": {
+              "type": "string"
+            }
+          }
+        },
+        "contentStore": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tableName": {
+              "type": "string"
+            },
+            "contentIdIndexName": {
+              "type": "string"
+            }
+          }
+        },
+        "invalidationStore": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tableName": {
+              "type": "string"
+            },
+            "debounceSeconds": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "lambda": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "runtime": {
+              "type": "string",
+              "enum": ["nodejs22.x"]
+            },
+            "architecture": {
+              "type": "string",
+              "enum": ["arm64", "x86_64"]
             }
           }
         }
@@ -87,13 +195,23 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "enabled": { "type": "boolean" },
-            "sourceTableName": { "type": "string" },
-            "mirrorTableName": { "type": "string" },
-            "tenant": { "type": "string" },
+            "enabled": {
+              "type": "boolean"
+            },
+            "sourceTableName": {
+              "type": "string"
+            },
+            "mirrorTableName": {
+              "type": "string"
+            },
+            "tenant": {
+              "type": "string"
+            },
             "relevantModels": {
               "type": "array",
-              "items": { "type": "string" }
+              "items": {
+                "type": "string"
+              }
             }
           }
         }

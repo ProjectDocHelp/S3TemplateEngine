@@ -79,6 +79,99 @@ test("cloudformation template exposes parameterized lambda artifacts and runtime
   assert.ok(template.Resources.ContentMirrorEventSourceMapping);
 });
 
+test("cloudformation template derives non-prod aliases and bucket names from the environment name", () => {
+  const template = buildCloudFormationTemplate({
+    config: {
+      project: {
+        name: "sop"
+      },
+      environments: {
+        test: {
+          name: "test",
+          awsRegion: "eu-west-1",
+          stackPrefix: "TEST",
+          certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/test"
+        },
+        prod: {
+          name: "prod",
+          awsRegion: "eu-west-1",
+          stackPrefix: "LIVE",
+          certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/prod"
+        }
+      },
+      rendering: {
+        minifyHtml: true,
+        renderExtensions: [".html", ".htm", ".part"],
+        outputDir: "offline/S3TELocal/preview",
+        maxRenderDepth: 50
+      },
+      variants: {
+        website: {
+          name: "website",
+          sourceDir: "app/website",
+          partDir: "app/part",
+          defaultLanguage: "de",
+          routing: {
+            indexDocument: "index.html",
+            notFoundDocument: "404.html"
+          },
+          languages: {
+            de: {
+              code: "de",
+              baseUrl: "schwimmbad-oberprechtal.de",
+              targetBucket: "{envPrefix}website-{project}",
+              cloudFrontAliases: ["schwimmbad-oberprechtal.de"]
+            }
+          }
+        },
+        app: {
+          name: "app",
+          sourceDir: "app/app",
+          partDir: "app/part-app",
+          defaultLanguage: "de",
+          routing: {
+            indexDocument: "index.html",
+            notFoundDocument: "404.html"
+          },
+          languages: {
+            de: {
+              code: "de",
+              baseUrl: "app.schwimmbad-oberprechtal.de",
+              targetBucket: "{envPrefix}app-{project}",
+              cloudFrontAliases: ["app.schwimmbad-oberprechtal.de"]
+            }
+          }
+        }
+      },
+      aws: {
+        codeBuckets: {
+          website: "{envPrefix}website-code-{project}",
+          app: "{envPrefix}app-code-{project}"
+        },
+        dependencyStore: { tableName: "{stackPrefix}_s3te_dependencies_{project}" },
+        contentStore: { tableName: "{stackPrefix}_s3te_content_{project}", contentIdIndexName: "contentid" },
+        invalidationStore: { tableName: "{stackPrefix}_s3te_invalidations_{project}", debounceSeconds: 60 },
+        lambda: { runtime: "nodejs22.x", architecture: "arm64" }
+      },
+      integrations: {
+        webiny: {
+          enabled: false,
+          relevantModels: ["staticContent", "staticCodeContent"]
+        }
+      }
+    },
+    environment: "test",
+    features: []
+  });
+
+  assert.equal(template.Resources.websiteCodeBucket.Properties.BucketName, "test-website-code-sop");
+  assert.equal(template.Resources.appCodeBucket.Properties.BucketName, "test-app-code-sop");
+  assert.equal(template.Resources.websitedeOutputBucket.Properties.BucketName, "test-website-sop");
+  assert.equal(template.Resources.appdeOutputBucket.Properties.BucketName, "test-app-sop");
+  assert.deepEqual(template.Resources.websitedeDistribution.Properties.DistributionConfig.Aliases, ["test.schwimmbad-oberprechtal.de"]);
+  assert.deepEqual(template.Resources.appdeDistribution.Properties.DistributionConfig.Aliases, ["test.app.schwimmbad-oberprechtal.de"]);
+});
+
 test("temporary deploy stack contains only the artifact bucket output", () => {
   const template = buildTemporaryDeployStackTemplate();
 

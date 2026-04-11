@@ -31,6 +31,26 @@ function normalizePath(value) {
   return String(value).replace(/\\/g, "/");
 }
 
+function normalizeBaseUrl(value) {
+  const trimmed = String(value).trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
+    try {
+      return new URL(trimmed).host;
+    } catch {
+      // fall back to lightweight normalization below
+    }
+  }
+
+  return trimmed
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
+    .replace(/^\/+|\/+$/g, "")
+    .split("/")[0];
+}
+
 function schemaTemplate() {
   return {
     $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -67,26 +87,106 @@ function schemaTemplate() {
           }
         }
       },
+      rendering: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          minifyHtml: { type: "boolean" },
+          renderExtensions: {
+            type: "array",
+            items: { type: "string" }
+          },
+          outputDir: { type: "string" },
+          maxRenderDepth: {
+            type: "integer",
+            minimum: 1
+          }
+        }
+      },
       variants: {
         type: "object",
         additionalProperties: {
           type: "object",
-          additionalProperties: true,
+          additionalProperties: false,
+          required: ["defaultLanguage", "languages"],
           properties: {
+            sourceDir: { type: "string" },
+            partDir: { type: "string" },
+            defaultLanguage: { type: "string" },
+            routing: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                indexDocument: { type: "string" },
+                notFoundDocument: { type: "string" }
+              }
+            },
             languages: {
               type: "object",
               additionalProperties: {
                 type: "object",
                 additionalProperties: false,
+                required: ["baseUrl", "cloudFrontAliases"],
                 properties: {
                   baseUrl: { type: "string" },
                   targetBucket: { type: "string" },
                   cloudFrontAliases: {
                     type: "array",
-                    items: { type: "string" }
+                    items: { type: "string" },
+                    minItems: 1
                   },
                   webinyLocale: { type: "string" }
                 }
+              }
+            }
+          }
+        }
+      },
+      aws: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          codeBuckets: {
+            type: "object",
+            additionalProperties: { type: "string" }
+          },
+          dependencyStore: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              tableName: { type: "string" }
+            }
+          },
+          contentStore: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              tableName: { type: "string" },
+              contentIdIndexName: { type: "string" }
+            }
+          },
+          invalidationStore: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              tableName: { type: "string" },
+              debounceSeconds: {
+                type: "integer",
+                minimum: 0
+              }
+            }
+          },
+          lambda: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              runtime: {
+                type: "string",
+                enum: ["nodejs22.x"]
+              },
+              architecture: {
+                type: "string",
+                enum: ["arm64", "x86_64"]
               }
             }
           }
@@ -129,14 +229,34 @@ function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-async function writeProjectFile(targetPath, body, force = false) {
-  if (!force && await fileExists(targetPath)) {
-    throw new Error(`Refusing to overwrite existing file: ${targetPath}`);
+async function writeProjectFile(targetPath, body, force = false, overwriteExisting = false) {
+  if (!force && !overwriteExisting && await fileExists(targetPath)) {
+    return;
   }
   await writeTextFile(targetPath, body);
 }
 
-function mergeProjectPackageJson(existingPackageJson, projectPackageJson) {
+function mergeDefaults(existingValue, defaultValue) {
+  if (existingValue === undefined) {
+    return defaultValue;
+  }
+
+  if (isPlainObject(defaultValue)) {
+    if (!isPlainObject(existingValue)) {
+      throw new Error("Existing JSON content must use an object where S3TE expects one.");
+    }
+
+    const mergedValue = { ...existingValue };
+    for (const [key, value] of Object.entries(defaultValue)) {
+      mergedValue[key] = mergeDefaults(existingValue[key], value);
+    }
+    return mergedValue;
+  }
+
+  return existingValue;
+}
+
+function mergeProjectPackageJson(existingPackageJson, projectPackageJson, scaffoldOptions = {}) {
   if (!isPlainObject(existingPackageJson)) {
     throw new Error("Existing package.json must contain a JSON object.");
   }
@@ -167,10 +287,14 @@ function mergeProjectPackageJson(existingPackageJson, projectPackageJson) {
     mergedPackageJson.scripts = mergedScripts;
   }
 
+  if (scaffoldOptions.projectNameProvided) {
+    mergedPackageJson.name = scaffoldOptions.projectName;
+  }
+
   return mergedPackageJson;
 }
 
-async function writeProjectPackageJson(targetPath, projectPackageJson, force = false) {
+async function writeProjectPackageJson(targetPath, projectPackageJson, scaffoldOptions = {}, force = false) {
   if (force || !await fileExists(targetPath)) {
     await writeTextFile(targetPath, JSON.stringify(projectPackageJson, null, 2) + "\n");
     return;
@@ -183,8 +307,61 @@ async function writeProjectPackageJson(targetPath, projectPackageJson, force = f
     throw new Error(`Existing package.json is not valid JSON: ${targetPath}`, { cause: error });
   }
 
-  const mergedPackageJson = mergeProjectPackageJson(existingPackageJson, projectPackageJson);
+  const mergedPackageJson = mergeProjectPackageJson(existingPackageJson, projectPackageJson, scaffoldOptions);
   await writeTextFile(targetPath, JSON.stringify(mergedPackageJson, null, 2) + "\n");
+}
+
+function applyScaffoldConfigOverrides(config, scaffoldOptions = {}) {
+  if (scaffoldOptions.projectNameProvided) {
+    config.project.name = scaffoldOptions.projectName;
+  }
+
+  const variantConfig = config.variants?.[scaffoldOptions.variant];
+  const languageConfig = variantConfig?.languages?.[scaffoldOptions.language];
+  if (!variantConfig || !languageConfig) {
+    return config;
+  }
+
+  if (scaffoldOptions.languageProvided) {
+    variantConfig.defaultLanguage = scaffoldOptions.language;
+  }
+
+  if (languageConfig.webinyLocale === undefined) {
+    languageConfig.webinyLocale = scaffoldOptions.language;
+  }
+
+  if (scaffoldOptions.baseUrlProvided) {
+    const previousBaseUrl = languageConfig.baseUrl;
+    languageConfig.baseUrl = scaffoldOptions.baseUrl;
+    if (!Array.isArray(languageConfig.cloudFrontAliases)
+      || languageConfig.cloudFrontAliases.length === 0
+      || (languageConfig.cloudFrontAliases.length === 1 && languageConfig.cloudFrontAliases[0] === previousBaseUrl)) {
+      languageConfig.cloudFrontAliases = [scaffoldOptions.baseUrl];
+    }
+  }
+
+  return config;
+}
+
+async function writeProjectConfigJson(targetPath, projectConfig, scaffoldOptions = {}, force = false) {
+  if (force || !await fileExists(targetPath)) {
+    await writeTextFile(targetPath, JSON.stringify(projectConfig, null, 2) + "\n");
+    return;
+  }
+
+  let existingConfig;
+  try {
+    existingConfig = JSON.parse(await fs.readFile(targetPath, "utf8"));
+  } catch (error) {
+    throw new Error(`Existing s3te.config.json is not valid JSON: ${targetPath}`, { cause: error });
+  }
+
+  if (!isPlainObject(existingConfig)) {
+    throw new Error("Existing s3te.config.json must contain a JSON object.");
+  }
+
+  const mergedConfig = applyScaffoldConfigOverrides(mergeDefaults(existingConfig, projectConfig), scaffoldOptions);
+  await writeTextFile(targetPath, JSON.stringify(mergedConfig, null, 2) + "\n");
 }
 
 async function loadRenderState(projectDir, environment) {
@@ -268,10 +445,20 @@ export async function validateProject(projectDir, config, options = {}) {
 
 export async function scaffoldProject(projectDir, options = {}) {
   const projectName = options.projectName ?? path.basename(projectDir).toLowerCase().replace(/[^a-z0-9-]/g, "-");
-  const baseUrl = options.baseUrl ?? "example.com";
+  const baseUrl = normalizeBaseUrl(options.baseUrl ?? "example.com");
   const variant = options.variant ?? "website";
   const language = options.language ?? "en";
   const force = Boolean(options.force);
+  const scaffoldOptions = {
+    projectName,
+    projectNameProvided: options.projectName !== undefined,
+    baseUrl,
+    baseUrlProvided: options.baseUrl !== undefined,
+    variant,
+    variantProvided: options.variant !== undefined,
+    language,
+    languageProvided: options.language !== undefined
+  };
 
   await ensureDirectory(path.join(projectDir, "app", "part"));
   await ensureDirectory(path.join(projectDir, "app", variant));
@@ -323,9 +510,9 @@ export async function scaffoldProject(projectDir, options = {}) {
     }
   };
 
-  await writeProjectPackageJson(path.join(projectDir, "package.json"), projectPackageJson, force);
-  await writeProjectFile(path.join(projectDir, "s3te.config.json"), JSON.stringify(config, null, 2) + "\n", force);
-  await writeProjectFile(path.join(projectDir, "offline", "schemas", "s3te.config.schema.json"), JSON.stringify(schemaTemplate(), null, 2) + "\n", force);
+  await writeProjectPackageJson(path.join(projectDir, "package.json"), projectPackageJson, scaffoldOptions, force);
+  await writeProjectConfigJson(path.join(projectDir, "s3te.config.json"), config, scaffoldOptions, force);
+  await writeProjectFile(path.join(projectDir, "offline", "schemas", "s3te.config.schema.json"), JSON.stringify(schemaTemplate(), null, 2) + "\n", force, true);
   await writeProjectFile(path.join(projectDir, "app", "part", "head.part"), "<meta charset='utf-8'>\n<title>My S3TE Site</title>\n", force);
   await writeProjectFile(path.join(projectDir, "app", variant, "index.html"), "<!doctype html>\n<html lang=\"<lang>2</lang>\">\n  <head>\n    <part>head.part</part>\n  </head>\n  <body>\n    <h1>Hello from S3TemplateEngine</h1>\n  </body>\n</html>\n", force);
   await writeProjectFile(path.join(projectDir, "offline", "content", `${language}.json`), "[]\n", force);

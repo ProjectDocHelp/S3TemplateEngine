@@ -88,7 +88,6 @@ test("scaffoldProject preserves existing package.json fields and script collisio
   }, null, 2) + "\n");
 
   await scaffoldProject(projectDir, {
-    projectName: "new-name",
     baseUrl: "example.com"
   });
 
@@ -102,4 +101,78 @@ test("scaffoldProject preserves existing package.json fields and script collisio
     validate: "s3te validate",
     render: "s3te render --env dev"
   });
+});
+
+test("scaffoldProject writes the canonical schema file", async (context) => {
+  const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "s3te-init-"));
+  context.after(async () => {
+    await fs.rm(projectDir, { recursive: true, force: true });
+  });
+
+  await scaffoldProject(projectDir, {
+    projectName: "sop",
+    baseUrl: "example.com"
+  });
+
+  const generatedSchema = JSON.parse(await fs.readFile(path.join(projectDir, "offline", "schemas", "s3te.config.schema.json"), "utf8"));
+  const canonicalSchema = JSON.parse(await fs.readFile(path.join(process.cwd(), "schemas", "s3te.config.schema.json"), "utf8"));
+
+  assert.deepEqual(generatedSchema, canonicalSchema);
+  assert.equal(generatedSchema.properties.rendering.type, "object");
+  assert.equal(generatedSchema.properties.aws.type, "object");
+});
+
+test("scaffoldProject can be re-run to refresh schema and explicit scaffold values without overwriting user files", async (context) => {
+  const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "s3te-init-"));
+  context.after(async () => {
+    await fs.rm(projectDir, { recursive: true, force: true });
+  });
+
+  await scaffoldProject(projectDir, {
+    projectName: "sop",
+    baseUrl: "example.com"
+  });
+
+  const configPath = path.join(projectDir, "s3te.config.json");
+  const packageJsonPath = path.join(projectDir, "package.json");
+  const schemaPath = path.join(projectDir, "offline", "schemas", "s3te.config.schema.json");
+  const headPartPath = path.join(projectDir, "app", "part", "head.part");
+  const contentPath = path.join(projectDir, "offline", "content", "en.json");
+
+  const editedConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
+  delete editedConfig.rendering;
+  delete editedConfig.variants.website.partDir;
+  editedConfig.project.displayName = "Schwimmbad Oberprechtal";
+  await fs.writeFile(configPath, JSON.stringify(editedConfig, null, 2) + "\n");
+  await fs.writeFile(schemaPath, JSON.stringify({
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    type: "object",
+    additionalProperties: false,
+    properties: {}
+  }, null, 2) + "\n");
+  await fs.writeFile(headPartPath, "<title>Custom Head</title>\n");
+  await fs.rm(contentPath, { force: true });
+
+  await scaffoldProject(projectDir, {
+    projectName: "sop-fixed",
+    baseUrl: "https://schwimmbad-oberprechtal.de/"
+  });
+
+  const mergedConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
+  const packageJson = JSON.parse(await fs.readFile(packageJsonPath, "utf8"));
+  const refreshedSchema = JSON.parse(await fs.readFile(schemaPath, "utf8"));
+
+  assert.equal(mergedConfig.project.name, "sop-fixed");
+  assert.equal(mergedConfig.project.displayName, "Schwimmbad Oberprechtal");
+  assert.deepEqual(mergedConfig.rendering, {
+    outputDir: "offline/S3TELocal/preview"
+  });
+  assert.equal(mergedConfig.variants.website.partDir, "app/part");
+  assert.equal(mergedConfig.variants.website.languages.en.baseUrl, "schwimmbad-oberprechtal.de");
+  assert.deepEqual(mergedConfig.variants.website.languages.en.cloudFrontAliases, ["schwimmbad-oberprechtal.de"]);
+  assert.equal(packageJson.name, "sop-fixed");
+  assert.equal(refreshedSchema.properties.rendering.type, "object");
+  assert.equal(refreshedSchema.properties.aws.type, "object");
+  assert.equal(await fs.readFile(headPartPath, "utf8"), "<title>Custom Head</title>\n");
+  assert.equal(await fs.readFile(contentPath, "utf8"), "[]\n");
 });

@@ -49,6 +49,8 @@ Root
 - `routing.indexDocument`: `index.html`
 - `routing.notFoundDocument`: `404.html`
 - `languages.<lang>.webinyLocale`: Sprach-Key selbst, zum Beispiel `en`
+- `languages.<lang>.baseUrl` und `cloudFrontAliases` muessen Hostnamen ohne Protokoll oder Pfad sein
+- wenn ein Environment `prod` existiert, werden nicht-produktive Hostnamen implizit als `<env>.<host>` aufgeloest
 
 ### `environments.<env>`
 
@@ -56,7 +58,7 @@ Root
 
 ### `aws`
 
-- `codeBuckets.<variant>`: `{env}-{variant}-code-{project}`
+- `codeBuckets.<variant>`: `{envPrefix}{variant}-code-{project}`
 - `dependencyStore.tableName`: `{stackPrefix}_s3te_dependencies_{project}`
 - `contentStore.tableName`: `{stackPrefix}_s3te_content_{project}`
 - `contentStore.contentIdIndexName`: `contentid`
@@ -165,12 +167,14 @@ Root
 1. `stackPrefix` kann aus dem Environment-Key abgeleitet werden.
 2. `sourceDir` kann aus dem Variant-Key abgeleitet werden.
 3. `targetBucket` kann aus Variant-, Sprach- und Projektkontext abgeleitet werden.
-4. `certificateArn` muss in `us-east-1` liegen.
-5. `targetBucket`- und `codeBuckets`-Namen muessen nach Platzhalteraufloesung eindeutig sein.
-6. `defaultLanguage` muss in der jeweiligen Sprachmenge existieren.
-7. Dateipfade muessen innerhalb des Projekts bleiben und duerfen kein `..` enthaelten.
-8. `webinyLocale` ist empfohlen, wenn S3TE-Sprachkeys und Webiny-Locale-Codes nicht identisch sind.
-9. `tenant` ist empfohlen, wenn dieselbe Webiny-Installation mehrere Tenants hostet.
+4. `baseUrl` und `cloudFrontAliases` muessen Hostnamen ohne Protokoll oder Pfad sein.
+5. wenn ein `prod`-Environment existiert, werden Hosts fuer nicht-produktive Environments automatisch mit `<env>.` praefixiert.
+6. `certificateArn` muss in `us-east-1` liegen.
+7. `targetBucket`- und `codeBuckets`-Namen muessen nach Platzhalteraufloesung eindeutig sein.
+8. `defaultLanguage` muss in der jeweiligen Sprachmenge existieren.
+9. Dateipfade muessen innerhalb des Projekts bleiben und duerfen kein `..` enthaelten.
+10. `webinyLocale` ist empfohlen, wenn S3TE-Sprachkeys und Webiny-Locale-Codes nicht identisch sind.
+11. `tenant` ist empfohlen, wenn dieselbe Webiny-Installation mehrere Tenants hostet.
 
 ## Validierungsfehler
 
@@ -194,3 +198,4 @@ Konsequenz fuer das Scaffold:
 
 - `sourceDir`, `partDir`, `outputDir` duerfen im Scaffold explizit gesetzt werden, obwohl sie Defaultwerte haben
 - `targetBucket` darf ebenfalls explizit geschrieben werden, damit Nutzer S3-Namen nicht erst herleiten muessen
+- `baseUrl` und `cloudFrontAliases` werden im Scaffold als Hostnamen ohne Protokoll geschrieben

@@ -4,6 +4,7 @@ import { assert, S3teError } from "./errors.mjs";
 import { getContentTypeForPath } from "./mime.mjs";
 import { minifyHtml, repairTruncatedHtml } from "./minify.mjs";
 import { readContentField, serializeContentValue } from "./content-query.mjs";
+import { resolveBaseUrl } from "./config.mjs";
 
 function createWarning(code, message, sourceKey) {
   return { code, message, sourceKey };
@@ -442,7 +443,7 @@ export async function renderSourceTemplate({ config, templateRepository, content
     language: languageCode,
     sourceKey,
     outputKey: sourceWithinVariant,
-    baseUrl: buildDefaultBaseUrl(languageConfig.baseUrl)
+    baseUrl: buildDefaultBaseUrl(resolveBaseUrl(config, environment, variantName, languageCode))
   };
 
   const trimmed = stripLeadingWhitespace(body);
@@ -527,7 +528,7 @@ export function createManualRenderTargets({ config, templateEntries, environment
           language: languageCode,
           sourceKey: templateEntry.key,
           outputKey,
-          baseUrl: config.variants[variantName].languages[languageCode].baseUrl
+          baseUrl: resolveBaseUrl(config, environment, variantName, languageCode)
         });
       }
     }

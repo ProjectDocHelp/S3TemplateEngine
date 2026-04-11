@@ -4,7 +4,9 @@ export { minifyHtml, repairTruncatedHtml } from "./minify.mjs";
 export {
   buildEnvironmentRuntimeConfig,
   loadProjectConfig,
+  resolveBaseUrl,
   resolveCodeBucketName,
+  resolveCloudFrontAliases,
   resolveRuntimeManifestParameterName,
   resolveProjectConfig,
   resolveStackName,

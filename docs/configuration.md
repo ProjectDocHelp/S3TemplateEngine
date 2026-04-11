@@ -83,13 +83,13 @@ Die Zielimplementierung muss die Konfiguration in dieser Reihenfolge aufbereiten
       "languages": {
         "en": {
           "baseUrl": "example.com",
-          "targetBucket": "{env}-website-{project}",
+          "targetBucket": "{envPrefix}website-{project}",
           "cloudFrontAliases": ["example.com", "www.example.com"],
           "webinyLocale": "en-US"
         },
         "de": {
           "baseUrl": "example.de",
-          "targetBucket": "{env}-website-{project}-de",
+          "targetBucket": "{envPrefix}website-{project}-de",
           "cloudFrontAliases": ["example.de", "www.example.de"],
           "webinyLocale": "de-DE"
         }
@@ -102,7 +102,7 @@ Die Zielimplementierung muss die Konfiguration in dieser Reihenfolge aufbereiten
       "languages": {
         "en": {
           "baseUrl": "app.example.com",
-          "targetBucket": "{env}-app-{project}",
+          "targetBucket": "{envPrefix}app-{project}",
           "cloudFrontAliases": ["app.example.com"]
         }
       }
@@ -110,8 +110,8 @@ Die Zielimplementierung muss die Konfiguration in dieser Reihenfolge aufbereiten
   },
   "aws": {
     "codeBuckets": {
-      "website": "{env}-website-code-{project}",
-      "app": "{env}-app-code-{project}"
+      "website": "{envPrefix}website-code-{project}",
+      "app": "{envPrefix}app-code-{project}"
     },
     "dependencyStore": {
       "tableName": "{stackPrefix}_s3te_dependencies_{project}"
@@ -231,7 +231,7 @@ Optionaler Block mit AWS-Adapter-Details. Fehlt der Block, muessen alle hier gen
 
 Defaults:
 
-- `codeBuckets.<variant>`: `{env}-{variant}-code-{project}`
+- `codeBuckets.<variant>`: `{envPrefix}{variant}-code-{project}`
 - `dependencyStore.tableName`: `{stackPrefix}_s3te_dependencies_{project}`
 - `contentStore.tableName`: `{stackPrefix}_s3te_content_{project}`
 - `contentStore.contentIdIndexName`: `contentid`
@@ -273,16 +273,26 @@ Die Content-Tabelle des S3TE-Stacks existiert in V1 immer. Das Nachruesten von W
 
 Jede Sprache unter `variants.<variant>.languages` besitzt:
 
-- `baseUrl`: Pflicht
+- `baseUrl`: Pflicht, als Hostname ohne Protokoll oder Pfad
 - `targetBucket`: optional, Default siehe unten
-- `cloudFrontAliases`: Pflicht, mindestens ein Alias
+- `cloudFrontAliases`: Pflicht, mindestens ein Alias als Hostname ohne Protokoll oder Pfad
 - `webinyLocale`: optional, fuer Webiny 6.x die zugehoerige Webiny-Locale wie `en-US`
+
+Wenn das Projekt ein Environment `prod` besitzt, werden `baseUrl` und `cloudFrontAliases` als produktive Basiswerte interpretiert:
+
+1. fuer `prod` bleiben sie unveraendert
+2. fuer alle anderen Environments wird `<env>.` davor gesetzt
+
+Beispiele:
+
+- `schwimmbad-oberprechtal.de` wird in `test` zu `test.schwimmbad-oberprechtal.de`
+- `app.schwimmbad-oberprechtal.de` wird in `test` zu `test.app.schwimmbad-oberprechtal.de`
 
 Default fuer `targetBucket`, wenn nicht explizit gesetzt:
 
-1. falls die Variante genau eine Sprache besitzt: `{env}-{variant}-{project}`
-2. falls die Sprache die `defaultLanguage` der Variante ist: `{env}-{variant}-{project}`
-3. sonst: `{env}-{variant}-{project}-{lang}`
+1. falls die Variante genau eine Sprache besitzt: `{envPrefix}{variant}-{project}`
+2. falls die Sprache die `defaultLanguage` der Variante ist: `{envPrefix}{variant}-{project}`
+3. sonst: `{envPrefix}{variant}-{project}-{lang}`
 
 Es wird bewusst kein Default fuer `cloudFrontAliases` abgeleitet, damit kein implizites `www.`-Verhalten entsteht.
 
@@ -297,6 +307,7 @@ Platzhalter duerfen in String-Werten verwendet werden. Sie werden immer pro Ziel
 Verfuegbare Platzhalter:
 
 - `{env}`: Umgebungsname, zum Beispiel `dev`
+- `{envPrefix}`: Resource-Prefix fuer Buckets, leer in `prod`, sonst `<env>-`
 - `{stackPrefix}`: abgeleiteter oder gesetzter Prefix, zum Beispiel `DEV`
 - `{project}`: `project.name`
 - `{variant}`: Variantenname, zum Beispiel `website`
@@ -304,9 +315,9 @@ Verfuegbare Platzhalter:
 
 Beispiele:
 
-- `{env}-website-code-{project}`
+- `{envPrefix}website-code-{project}`
 - `{stackPrefix}_s3te_content_{project}`
-- `{env}-{variant}-{project}-{lang}`
+- `{envPrefix}{variant}-{project}-{lang}`
 
 Nicht erlaubte Platzhalter:
 
@@ -378,6 +389,13 @@ Mit Defaults wird daraus mindestens:
 - `targetBucket = dev-website-mysite`
 - `codeBuckets.website = dev-website-code-mysite`
 - `outputDir = offline/S3TELocal/preview`
+
+Wenn zusaetzlich ein Environment `prod` existiert, werden nicht-produktive Hosts automatisch praefixiert und produktive Bucket-Namen ohne `prod-` aufgeloest:
+
+- `prod website.baseUrl = example.com`
+- `test website.baseUrl = test.example.com`
+- `prod targetBucket = website-mysite`
+- `test targetBucket = test-website-mysite`
 
 ## Verzeichnisannahme
 

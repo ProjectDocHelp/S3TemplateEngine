@@ -192,7 +192,7 @@ mywebsite/
     extensions.json
 ```
 
-The generated `.github/workflows/s3te-sync.yml` is the default CI path for GitHub-based source publishing into the S3TE code bucket. It is scaffolded once and then left alone on later `s3te init` runs unless you use `--force`.
+The generated `.github/workflows/s3te-sync.yml` is the default CI path for GitHub-based source publishing into the S3TE code buckets. It is scaffolded once and then left alone on later `s3te init` runs unless you use `--force`.
 
 </details>
 
@@ -251,6 +251,175 @@ If you left `route53HostedZoneId` out of the config, the last DNS step stays man
 
 </details>
 
+<details>
+  <summary>6. Prepare GitHub Actions for code-bucket publishing</summary>
+
+Use this step if your team wants GitHub pushes to publish project sources into the S3TE code bucket instead of running `s3te sync` locally.
+
+`s3te init` already scaffolded `.github/workflows/s3te-sync.yml` for that path.
+
+That workflow is meant for source publishing only:
+
+- it validates the project
+- it reads the selected environment from GitHub and resolves the matching AWS region from `s3te.config.json`
+- it uploads every configured variant into its own S3TE code bucket
+- the resulting S3 events trigger the deployed Lambda pipeline in AWS
+
+Use a full `deploy` only when the infrastructure, environment config, or runtime package changes.
+
+GitHub preparation checklist:
+
+1. Push the project to GitHub together with `.github/workflows/s3te-sync.yml`.
+2. Make sure GitHub Actions are allowed for the repository or organization.
+3. Run the first real `npx s3te deploy --env <name>` so the code buckets already exist.
+4. In AWS IAM, create an access key for a CI user that may sync only the S3TE code buckets for that environment.
+5. In GitHub open `Settings -> Secrets and variables -> Actions -> Variables`.
+6. Add these repository variables:
+   - `S3TE_ENVIRONMENT`
+     Use the exact environment name from `s3te.config.json`, for example `dev`, `test`, or `prod`.
+   - `S3TE_GIT_BRANCH` optional
+     Use the branch that should trigger the sync job, for example `main`.
+7. In GitHub open `Settings -> Secrets and variables -> Actions -> Secrets`.
+8. Add these repository secrets:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+9. Leave `.github/workflows/s3te-sync.yml` unchanged unless you want a custom CI flow. The scaffolded workflow already reads:
+   - the environment from `S3TE_ENVIRONMENT`
+   - the branch from `S3TE_GIT_BRANCH` or defaults to `main`
+   - the AWS region from `s3te.config.json`
+
+You do not have to store bucket names, source folders, part folders, or AWS regions in GitHub variables. `s3te sync` resolves all of that from `s3te.config.json`.
+
+For projects with multiple environments such as `test` and `prod`, the simplest setup is usually one workflow file per target environment, for example:
+
+- `.github/workflows/s3te-sync-test.yml` with `npx s3te sync --env test`
+- `.github/workflows/s3te-sync-prod.yml` with `npx s3te sync --env prod`
+
+First verification in GitHub:
+
+1. Open the `Actions` tab in the repository.
+2. Select `S3TE Sync`.
+3. Start it once manually with `Run workflow`.
+4. Check that the run reaches the `Configure AWS credentials`, `Validate project`, and `Sync project sources to the S3TE code buckets` steps without error.
+
+Where to get the AWS values:
+
+- `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+  In the AWS console open `IAM -> Users -> <your-ci-user> -> Security credentials -> Create access key`.
+  Save both values immediately. The secret access key is shown only once. AWS documents the credential options and access-key handling here:
+  [AWS security credentials](https://docs.aws.amazon.com/IAM/latest/UserGuide/security-creds.html),
+  [Manage access keys for IAM users](https://docs.aws.amazon.com/IAM/latest/UserGuide/access-keys-admin-managed.html).
+- `S3TE_ENVIRONMENT`
+  This is the environment key from your `s3te.config.json`, for example `test` or `prod`.
+- AWS region
+  You do not need to copy this into GitHub. The workflow reads `environments.<name>.awsRegion` directly from `s3te.config.json`.
+
+What gets uploaded where:
+
+- For each variant, S3TE stages `partDir` into `part/` and `sourceDir` into `<variant>/`.
+- Then S3TE syncs that staged tree into the resolved code bucket for that variant and environment.
+
+With your example config this means:
+
+- `test` + `website`: `app/part` and `app/website` go to `test-website-code-sop`
+- `test` + `app`: `app/part-app` and `app/app` go to `test-app-code-sop`
+- `prod` + `website`: `app/part` and `app/website` go to `website-code-sop`
+- `prod` + `app`: `app/part-app` and `app/app` go to `app-code-sop`
+
+Minimal IAM policy example for the `test` environment and both variants:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::test-website-code-sop",
+        "arn:aws:s3:::test-app-code-sop"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": [
+        "arn:aws:s3:::test-website-code-sop/*",
+        "arn:aws:s3:::test-app-code-sop/*"
+      ]
+    }
+  ]
+}
+```
+
+For different environments or additional variants, use the derived code bucket names from your config.
+
+The scaffolded workflow looks like this:
+
+```yaml
+# Required GitHub repository secrets:
+# - AWS_ACCESS_KEY_ID
+# - AWS_SECRET_ACCESS_KEY
+# Required GitHub repository variable:
+# - S3TE_ENVIRONMENT (for example dev, test, or prod)
+# Optional GitHub repository variable:
+# - S3TE_GIT_BRANCH (defaults to main)
+# This workflow reads s3te.config.json at runtime and syncs all variants into their own code buckets.
+name: S3TE Sync
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Optional S3TE environment override from s3te.config.json
+        required: false
+        type: string
+  push:
+    paths:
+      - "app/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/s3te-sync.yml"
+
+jobs:
+  sync:
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == (vars.S3TE_GIT_BRANCH || 'main')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+      - name: Resolve S3TE environment and AWS region from s3te.config.json
+        id: s3te-config
+        shell: bash
+        env:
+          WORKFLOW_INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          REPOSITORY_S3TE_ENVIRONMENT: ${{ vars.S3TE_ENVIRONMENT }}
+        run: |
+          node -e "const fs=require('node:fs'); const requested=(process.env.WORKFLOW_INPUT_ENVIRONMENT || process.env.REPOSITORY_S3TE_ENVIRONMENT || '').trim(); const config=JSON.parse(fs.readFileSync('s3te.config.json','utf8')); const known=Object.keys(config.environments ?? {}); if(!requested){ console.error('Missing GitHub repository variable S3TE_ENVIRONMENT.'); process.exit(1);} const environmentConfig=config.environments?.[requested]; if(!environmentConfig){ console.error('Unknown environment ' + requested + '. Known environments: ' + (known.length > 0 ? known.join(', ') : '(none)') + '.'); process.exit(1);} fs.appendFileSync(process.env.GITHUB_OUTPUT, 'environment=' + requested + '\n'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'aws_region=' + environmentConfig.awsRegion + '\n');"
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ steps.s3te-config.outputs.aws_region }}
+      - run: npx s3te validate --env ${{ steps.s3te-config.outputs.environment }}
+      - run: npx s3te sync --env ${{ steps.s3te-config.outputs.environment }}
+```
+
+</details>
+
 ## Usage
 
 Once the project is installed, your everyday loop splits into two paths: deploy when infrastructure changes, sync when only project sources changed.
@@ -265,7 +434,7 @@ Once the project is installed, your everyday loop splits into two paths: deploy 
 3. Validate and render locally.
 4. Run your tests.
 5. Use `deploy` for the first installation or after infrastructure/config/runtime changes.
-6. Use `sync` for day-to-day source publishing into the code bucket.
+6. Use `sync` for day-to-day source publishing into the code buckets.
 
 ```bash
 npx s3te validate
@@ -414,115 +583,6 @@ npx s3te deploy --env prod
 ```
 
 That deploy updates the existing environment stack and adds the Webiny mirror resources to it. You do not need a fresh S3TE installation. After that, Webiny content changes flow through the deployed AWS resources automatically; only template or asset changes still need `s3te sync --env <name>`.
-
-</details>
-
-<details>
-  <summary>GitHub Actions source publishing</summary>
-
-If your team works through GitHub instead of running `s3te sync` locally, the scaffold already includes `.github/workflows/s3te-sync.yml`.
-
-That workflow is meant for source publishing only:
-
-- it validates the project
-- it uploads `app/...` and `part/...` into the S3TE code bucket
-- the resulting S3 events trigger the deployed Lambda pipeline in AWS
-
-Use a full `deploy` only when the infrastructure, environment config, or runtime package changes.
-
-GitHub preparation checklist:
-
-1. Push the project to GitHub together with `.github/workflows/s3te-sync.yml`.
-2. Make sure GitHub Actions are allowed for the repository or organization.
-3. Run the first real `npx s3te deploy --env <name>` so the code bucket already exists.
-4. In AWS IAM, create an access key for a CI user that may sync only the S3TE code bucket for that environment.
-5. In GitHub open `Settings -> Secrets and variables -> Actions -> Secrets`.
-6. Add these repository secrets:
-   - `AWS_ACCESS_KEY_ID`
-   - `AWS_SECRET_ACCESS_KEY`
-7. Open `.github/workflows/s3te-sync.yml` and adjust:
-   - the branch under `on.push.branches`
-   - `aws-region`
-   - `npx s3te sync --env dev` to your target environment such as `prod` or `test`
-
-No GitHub variables are required by the scaffolded workflow. The code bucket name is resolved by S3TE from `s3te.config.json`, so you do not have to store bucket names in GitHub.
-
-For projects with multiple environments such as `test` and `prod`, the simplest setup is usually one workflow file per target environment, for example:
-
-- `.github/workflows/s3te-sync-test.yml` with `npx s3te sync --env test`
-- `.github/workflows/s3te-sync-prod.yml` with `npx s3te sync --env prod`
-
-First verification in GitHub:
-
-1. Open the `Actions` tab in the repository.
-2. Select `S3TE Sync`.
-3. Start it once manually with `Run workflow`.
-4. Check that the run reaches the `Configure AWS credentials`, `Validate project`, and `Sync project sources to the S3TE code bucket` steps without error.
-
-Minimal IAM policy example for one code bucket:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": ["s3:ListBucket"],
-      "Resource": ["arn:aws:s3:::dev-website-code-mywebsite"]
-    },
-    {
-      "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
-      "Resource": ["arn:aws:s3:::dev-website-code-mywebsite/*"]
-    }
-  ]
-}
-```
-
-For non-production environments or additional variants, use the derived code bucket names from your config, for example `test-website-code-mywebsite` or `app-code-mywebsite`.
-
-The scaffolded workflow looks like this:
-
-```yaml
-name: S3TE Sync
-on:
-  workflow_dispatch:
-  push:
-    branches: ["main"]
-    paths:
-      - "app/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/s3te-sync.yml"
-
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install dependencies
-        shell: bash
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-central-1
-      - run: npx s3te validate
-      - run: npx s3te sync --env dev
-```
 
 </details>
 

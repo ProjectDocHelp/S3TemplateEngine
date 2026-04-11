@@ -250,17 +250,24 @@ function schemaTemplate() {
 }
 
 function githubSyncWorkflowTemplate() {
-  return `# Before first use:
-# 1. Run "npx s3te deploy --env dev" once so the S3TE code bucket already exists.
-# 2. Add GitHub Actions secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
-# 3. Adjust branch, aws-region, and the target environment below.
+  return `# Required GitHub repository secrets:
+# - AWS_ACCESS_KEY_ID
+# - AWS_SECRET_ACCESS_KEY
+# Required GitHub repository variable:
+# - S3TE_ENVIRONMENT (for example dev, test, or prod)
+# Optional GitHub repository variable:
+# - S3TE_GIT_BRANCH (defaults to main)
+# This workflow reads s3te.config.json at runtime and syncs all variants into their own code buckets.
 name: S3TE Sync
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Optional S3TE environment override from s3te.config.json
+        required: false
+        type: string
   push:
-    branches:
-      - main
     paths:
       - "app/**"
       - "package.json"
@@ -269,6 +276,7 @@ on:
 
 jobs:
   sync:
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == (vars.S3TE_GIT_BRANCH || 'main')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -286,16 +294,24 @@ jobs:
           else
             npm install
           fi
+      - name: Resolve S3TE environment and AWS region from s3te.config.json
+        id: s3te-config
+        shell: bash
+        env:
+          WORKFLOW_INPUT_ENVIRONMENT: \${{ inputs.environment }}
+          REPOSITORY_S3TE_ENVIRONMENT: \${{ vars.S3TE_ENVIRONMENT }}
+        run: |
+          node -e "const fs=require('node:fs'); const requested=(process.env.WORKFLOW_INPUT_ENVIRONMENT || process.env.REPOSITORY_S3TE_ENVIRONMENT || '').trim(); const config=JSON.parse(fs.readFileSync('s3te.config.json','utf8')); const known=Object.keys(config.environments ?? {}); if(!requested){ console.error('Missing GitHub repository variable S3TE_ENVIRONMENT.'); process.exit(1);} const environmentConfig=config.environments?.[requested]; if(!environmentConfig){ console.error('Unknown environment ' + requested + '. Known environments: ' + (known.length > 0 ? known.join(', ') : '(none)') + '.'); process.exit(1);} fs.appendFileSync(process.env.GITHUB_OUTPUT, 'environment=' + requested + '\\n'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'aws_region=' + environmentConfig.awsRegion + '\\n');"
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: \${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: \${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-central-1
+          aws-region: \${{ steps.s3te-config.outputs.aws_region }}
       - name: Validate project
-        run: npx s3te validate
-      - name: Sync project sources to the S3TE code bucket
-        run: npx s3te sync --env dev
+        run: npx s3te validate --env \${{ steps.s3te-config.outputs.environment }}
+      - name: Sync project sources to the S3TE code buckets
+        run: npx s3te sync --env \${{ steps.s3te-config.outputs.environment }}
 `;
 }
 

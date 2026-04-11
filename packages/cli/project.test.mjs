@@ -228,7 +228,9 @@ test("scaffoldProject writes a default GitHub sync workflow", async (context) =>
 
   assert.match(workflow, /name: S3TE Sync/);
   assert.match(workflow, /aws-actions\/configure-aws-credentials@v4/);
-  assert.match(workflow, /run: npx s3te sync --env dev/);
+  assert.match(workflow, /S3TE_ENVIRONMENT/);
+  assert.match(workflow, /steps\.s3te-config\.outputs\.aws_region/);
+  assert.match(workflow, /run: npx s3te sync --env \$\{\{ steps\.s3te-config\.outputs\.environment \}\}/);
 });
 
 test("scaffoldProject can be re-run to refresh schema and explicit scaffold values without overwriting user files", async (context) => {

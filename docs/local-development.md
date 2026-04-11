@@ -142,10 +142,11 @@ flowchart TD
   C --> D[npx s3te validate]
   D --> E[npx s3te render --env dev]
   E --> F[npx s3te test]
-  F --> G[npx s3te sync --env dev]
-  G --> H{Stack oder Config geaendert?}
-  H -->|ja| I[npx s3te deploy --env dev]
-  H -->|nein| J[In AWS reagiert die laufende S3TE]
+  F --> G{Stack oder Config geaendert?}
+  G -->|ja| H[npx s3te deploy --env dev]
+  G -->|nein| I[npx s3te sync --env dev]
+  I --> J[In AWS reagiert die laufende S3TE]
+  H --> J
 ```
 
 ## CLI-Referenz fuer lokale Entwicklung
@@ -172,7 +173,8 @@ flowchart TD
 ### `s3te test`
 
 - fuehrt projektbezogene Tests aus
-- bindet das interne Testkit aus `@projectdochelp/s3te/testkit` ein
+- fuehrt die Testdateien aus `offline/tests/` oder alternativ `tests/` mit dem Node Built-in Test Runner aus
+- Projekt-Tests koennen bei Bedarf `@projectdochelp/s3te/testkit` direkt importieren
 - nutzt in der Referenzimplementierung den Node Built-in Test Runner
 
 ### `s3te package`
@@ -200,7 +202,7 @@ flowchart TD
 
 ### `s3te migrate`
 
-- aktualisiert Projektdateien und Beispielkonfiguration auf den aktuellen S3TE-Stand
+- aktualisiert die Projektkonfiguration auf den aktuellen S3TE-Stand
 - darf Migrationshinweise und manuelle Nacharbeiten ausgeben
 
 ## Projektannahmen fuer README und Scaffolds

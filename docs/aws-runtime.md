@@ -70,7 +70,6 @@ flowchart LR
 - `invalidation-scheduler`
 - `invalidation-executor`
 - optional `content-mirror`
-- optional `sitemap-updater`
 
 ### DynamoDB
 
@@ -148,7 +147,7 @@ sequenceDiagram
   participant S3 as Code Buckets
 
   U->>CLI: s3te deploy --env prod
-  CLI->>CLI: validate + package
+  CLI->>CLI: load resolved config + package
   CLI->>TCF: deploy temporary artifact stack
   CLI->>TCF: upload lambda artifacts into temp bucket
   CLI->>ECF: deploy environment stack with placeholder manifest
@@ -341,10 +340,10 @@ Pflichtregeln:
 
 ### Buckets
 
-- Code-Bucket Default: `<env>-<variant>-code-<project>`
+- Code-Bucket Default: `<envPrefix><variant>-code-<project>`
 - Output-Bucket Default:
-  - Default-Sprache oder Einsprach-Projekt: `<env>-<variant>-<project>`
-  - sonst: `<env>-<variant>-<project>-<lang>`
+  - Default-Sprache oder Einsprach-Projekt: `<envPrefix><variant>-<project>`
+  - sonst: `<envPrefix><variant>-<project>-<lang>`
 
 ### Lambda-Funktionen
 
@@ -353,7 +352,6 @@ Pflichtregeln:
 - `<STACKPREFIX>_s3te_invalidation_scheduler`
 - `<STACKPREFIX>_s3te_invalidation_executor`
 - `<STACKPREFIX>_s3te_content_mirror`
-- `<STACKPREFIX>_s3te_sitemap_updater`
 
 ### Step Function
 
@@ -371,7 +369,7 @@ Die Referenzimplementierung soll Least Privilege verwenden. Die folgenden Berech
 
 - `ssm:GetParameter`
 - `s3:GetObject`
-- `s3:CopyObject`
+- `s3:PutObject`
 - `s3:DeleteObject`
 - `lambda:InvokeFunction` auf `render-worker`
 
@@ -425,14 +423,6 @@ Aktiviert:
 
 - `content-mirror`
 - Event Source Mapping auf den Quell-Stream
-
-### `sitemap`
-
-Aktiviert:
-
-- `sitemap-updater`
-
-Der Sitemap-Pfad ist optional und gehoert nicht in den Core.
 
 ## Bewusste Abweichungen zum Legacy-Repo
 

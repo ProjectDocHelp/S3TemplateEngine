@@ -98,9 +98,9 @@ S3TemplateEngine (S3TE) bleibt eine ultra-leichte, serverless Engine fuer statis
 ### FR-9 Lokales Entwickeln und Testen
 
 - Ein kompletter Render-Lauf muss lokal ohne AWS moeglich sein.
-- Template-, Snapshot-, Struktur- und Accessibility-Tests muessen ueber das Testkit ausfuehrbar sein.
-- Mocks fuer S3, DynamoDB und externe Content-Quellen muessen vorgesehen sein.
-- Das Testkit muss fuer `dbmultifileitem.limitlow` Bereichs- und Strukturassertions unterstuetzen, nicht nur bytegenaue Snapshots.
+- Projekttests muessen lokal ueber den Node Built-in Test Runner ausfuehrbar sein.
+- Das Testkit muss dafuer mindestens In-Memory-Template- und Content-Repositories, einen Memory-Dependency-Store sowie sammelnde Output- und Invalidation-Testadapter bereitstellen.
+- Fixture-Lader fuer lokale Content-Dateien muessen vorgesehen sein.
 - Der lokale Entwicklungsworkflow auf Basis von VSCode muss dokumentiert und offiziell unterstuetzt sein.
 
 ### FR-10 CLI
@@ -162,9 +162,9 @@ Weitere CLI-Anforderungen:
 
 ### NFR-6 Beobachtbarkeit
 
-- Alle Adapter erzeugen strukturierte Logs.
-- Jeder Build besitzt eine korrelierbare Build-ID.
-- Build-Ursachen muessen nachvollziehbar sein: S3, Content, CLI oder Deployment.
+- Fehler und CLI-Reports muessen strukturierte Fehlercodes und Detailobjekte tragen.
+- AWS-nahe Build-Pfade muessen korrelierbare Build-IDs fuer Render- und Invalidierungsablaeufe erzeugen.
+- Build-Ursachen muessen im Laufzeitpfad nachvollziehbar sein: S3, Content, CLI oder Deployment.
 
 ## Betriebsanforderungen
 

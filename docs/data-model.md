@@ -395,8 +395,8 @@ Fuer lokalisierte Inhalte gilt:
 
 Default-Muster fuer die AWS-Referenz:
 
-- Code-Bucket: `<env>-<variant>-code-<project>`
-- Output-Bucket Default-Sprache: `<env>-<variant>-<project>`
-- Output-Bucket weitere Sprache: `<env>-<variant>-<project>-<lang>`
+- Code-Bucket: `<envPrefix><variant>-code-<project>`
+- Output-Bucket Default-Sprache: `<envPrefix><variant>-<project>`
+- Output-Bucket weitere Sprache: `<envPrefix><variant>-<project>-<lang>`
 
 Diese Muster gelten nur als Default. Die effektiven Namen entstehen nach Platzhalteraufloesung aus der Projektkonfiguration.

@@ -101,7 +101,6 @@ Jeder Render-Lauf besitzt einen Kontext mit mindestens:
 - `TemplateRepository`
 - `ContentRepository`
 - `DependencyStore`
-- `Logger`
 
 ## Fehler- und Warnungsvertrag
 

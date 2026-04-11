@@ -380,24 +380,15 @@ export interface OutputPublisher {
 }
 ```
 
-## Logging-Interface
+## Render-Orchestrierung
 
-```ts
-export interface Logger {
-  debug(message: string, details?: Record<string, unknown>): void;
-  info(message: string, details?: Record<string, unknown>): void;
-  warn(message: string, details?: Record<string, unknown>): void;
-  error(message: string, details?: Record<string, unknown>): void;
-}
-```
+Die aktuelle V1-Implementierung exponiert kein separates `Logger`- oder `BuildOrchestrator`-Interface an der Paketgrenze.
 
-## Orchestrator-Interface
+Die Orchestrierung erfolgt praktisch ueber:
 
-```ts
-export interface BuildOrchestrator {
-  handle(request: BuildRequest): Promise<RenderResult[]>;
-}
-```
+- `renderSourceTemplate(...)` fuer lokale und AWS-nahe Render-Arbeit
+- `createManualRenderTargets(...)` fuer CLI-getriebene Render-Zielfindung
+- die AWS-Runtime-Handler fuer normalisierte Source- und Content-Events
 
 ## Normalisierte Events
 
@@ -477,6 +468,7 @@ export interface CliReport<TData = unknown> {
 export interface ValidateReport {
   configPath: string;
   checkedEnvironments: string[];
+  checkedTemplates: string[];
 }
 
 export interface RenderReport {
@@ -490,6 +482,7 @@ export interface PackageReport {
   manifestPath: string;
   lambdaArtifacts: string[];
   cloudFormationTemplate: string;
+  manifest: Record<string, unknown>;
 }
 
 export interface SyncReport {
@@ -510,6 +503,22 @@ export interface DeployReport {
     language: string;
     distributionId: string;
   }>;
+}
+
+export interface DoctorCheck {
+  name: string;
+  ok: boolean;
+  message: string;
+}
+
+export interface DoctorReport {
+  checks: DoctorCheck[];
+}
+
+export interface MigrateReport {
+  configVersion: number;
+  wrote: boolean;
+  changes: string[];
 }
 ```
 

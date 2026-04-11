@@ -46,7 +46,7 @@ Begruendung:
 
 - Test-Runner: Node Built-in `node:test`
 - Assertions: `node:assert/strict`
-- Snapshot-, Struktur- und Accessibility-Helfer kommen aus dem Subpath-Export `@projectdochelp/s3te/testkit`
+- das Subpath-Export `@projectdochelp/s3te/testkit` liefert In-Memory-Repositories, einen Memory-Dependency-Store, sammelnde Output-/Invalidation-Testadapter und Fixture-Helfer
 
 Begruendung:
 
@@ -104,7 +104,7 @@ Begruendung:
 
 - ein CloudFormation-Stack pro Umgebung
 - keine separaten Zusatz-Stacks fuer Sprache, Variante oder Webiny
-- Optionals wie Webiny oder Sitemap werden im selben Stack per Condition ein- oder ausgeschaltet
+- optionale Ressourcen wie Webiny werden im selben Stack ueber die aufgeloeste Projektkonfiguration ein- oder ausgeschaltet
 
 Begruendung:
 
@@ -151,8 +151,9 @@ repo/
 ### `testkit`
 
 - In-Memory-Adapter
-- Snapshot- und Strukturtests
-- Accessibility-Helfer
+- Memory-Dependency-Store
+- sammelnde Output- und Invalidation-Testadapter
+- Fixture-Helfer fuer lokale Content-Dateien
 - Mocks fuer Content und AWS-nahe Abstraktionen
 
 ## Noob-User-Konsequenzen

@@ -82,16 +82,16 @@ Verantwortung:
 Verantwortung:
 
 - In-Memory-Implementierungen der Core-Interfaces
-- Snapshot- und Strukturtests
-- Accessibility-Helfer
-- Mocks fuer Content- und AWS-nahe Abstraktionen
+- Fixture-Lader fuer lokale Content-Dateien
+- sammelnde Output- und Invalidation-Adapter fuer Projekttests
+- Mocks fuer Content- und Core-nahe Abstraktionen
 
 ## Laufzeitfluesse
 
 ```mermaid
 flowchart TD
   A[S3 oder Content Event] --> B[Adapter normalisiert Event]
-  B --> C[BuildOrchestrator]
+  B --> C[Render Runtime]
   C --> D[Template und Content laden]
   D --> E[Render-Pipeline ausfuehren]
   E --> F[Outputs publizieren]
@@ -104,7 +104,7 @@ flowchart TD
 1. CLI liest `s3te.config.json`
 2. CLI validiert und wendet Defaults an
 3. CLI baut `ResolvedProjectConfig`
-4. CLI verwendet In-Memory- oder Dateisystem-Adapter
+4. CLI verwendet Dateisystem-Adapter fuer Templates und lokale Content-Dateien
 5. Core rendert in `offline/S3TELocal/preview/...`
 
 ### AWS-Render-Lauf
@@ -158,26 +158,14 @@ project/
 
 Assets liegen standardmaessig innerhalb der Variantenordner, nicht in einem separaten globalen `public/`-Ordner.
 
-## Implementierungsphasen
+## Implementierungsstand
 
-### Phase 1
+Aktuell im Repository umgesetzt:
 
-- `core` Modul
-- `testkit` Modul
-- `cli` Modul mit `init`, `validate`, `render`, `test`
-
-### Phase 2
-
-- `aws-adapter` Modul
-- Packaging und Deploy
-- Dependency Store
-- Invalidation Store
-
-### Phase 3
-
-- Webiny Mirror
-- Sitemap-Adapter
-- `doctor` und `migrate`
+- `core` Modul mit Render-Pipeline und Konfigurationsaufloesung
+- `testkit` Modul mit In-Memory-Repositories, Dependency Store sowie sammelnden Publisher-/Scheduler-Testadaptern
+- `cli` Modul mit `init`, `validate`, `render`, `test`, `package`, `sync`, `deploy`, `doctor` und `migrate`
+- `aws-adapter` Modul mit Packaging, Deploy, Source-Sync, Runtime-Manifest, Invalidation und optionalem Webiny-Mirror
 
 ## Dokumentenlandkarte
 

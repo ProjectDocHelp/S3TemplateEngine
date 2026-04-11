@@ -49,7 +49,6 @@ Mit `--json`:
 - `1`: Aufruffehler oder unerwarteter interner Fehler
 - `2`: Konfigurations- oder Template-Validierungsfehler
 - `3`: Umgebung oder Authentifizierung nicht bereit
-- `4`: Deployment oder Packaging fehlgeschlagen
 
 ## Standardverzeichnisse
 
@@ -130,7 +129,7 @@ s3te validate --env dev
 
 Optionen:
 
-- `--env <name>` optional, mehrfach erlaubt
+- `--env <name>` optional
 - `--warnings-as-errors`
 
 Pruefungen:
@@ -202,13 +201,13 @@ s3te test --env dev
 Optionen:
 
 - `--env <name>` optional
-- `--update-snapshots`
 
 Pflichtverhalten:
 
 1. validiert die Konfiguration
-2. startet den projektweiten Testlauf
-3. bindet das Subpath-Testkit `@projectdochelp/s3te/testkit` an den lokalen Render-Core an
+2. startet den projektweiten Testlauf ueber den Node Built-in Test Runner
+3. verwendet dafuer konkret die Testdateien aus `offline/tests/`, falls dieses Verzeichnis existiert, sonst aus `tests/`
+4. Projekt-Tests koennen das Subpath-Testkit `@projectdochelp/s3te/testkit` selbst importieren
 
 ## `s3te package`
 
@@ -230,7 +229,7 @@ Optionen:
 
 Pflichtverhalten:
 
-1. validiert Projekt und Konfiguration
+1. laedt und validiert die Projektkonfiguration
 2. erzeugt Lambda-Artefakte deterministisch
 3. schreibt genau ein CloudFormation-Template fuer die Umgebung
 4. schreibt ein Packaging-Manifest mit Artefakt- und Template-Informationen
@@ -311,7 +310,6 @@ Ausnahme:
 Aktivierte Features in V1:
 
 - `webiny`
-- `sitemap`
 
 JSON-Report:
 

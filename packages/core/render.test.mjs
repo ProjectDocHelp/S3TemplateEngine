@@ -50,7 +50,7 @@ function createConfig() {
       dependencyStore: { tableName: "DEV_s3te_dependencies_mysite" },
       contentStore: { tableName: "DEV_s3te_content_mysite", contentIdIndexName: "contentid" },
       invalidationStore: { tableName: "DEV_s3te_invalidations_mysite", debounceSeconds: 60 },
-      lambda: { runtime: "nodejs22.x", architecture: "arm64" }
+      lambda: { runtime: "nodejs24.x", architecture: "arm64" }
     },
     integrations: {
       webiny: {

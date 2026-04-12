@@ -125,7 +125,7 @@ Die Zielimplementierung muss die Konfiguration in dieser Reihenfolge aufbereiten
       "debounceSeconds": 60
     },
     "lambda": {
-      "runtime": "nodejs22.x",
+      "runtime": "nodejs24.x",
       "architecture": "arm64"
     }
   },
@@ -263,7 +263,7 @@ Defaults:
 - `contentStore.contentIdIndexName`: `contentid`
 - `invalidationStore.tableName`: `{stackPrefix}_s3te_invalidations_{project}`
 - `invalidationStore.debounceSeconds`: `60`
-- `lambda.runtime`: `nodejs22.x`
+- `lambda.runtime`: `nodejs24.x`
 - `lambda.architecture`: `arm64`
 
 ### `integrations`

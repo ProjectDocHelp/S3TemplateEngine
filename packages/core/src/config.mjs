@@ -277,7 +277,7 @@ export function resolveProjectConfig(projectConfig) {
       debounceSeconds: projectConfig.aws?.invalidationStore?.debounceSeconds ?? 60
     },
     lambda: {
-      runtime: projectConfig.aws?.lambda?.runtime ?? "nodejs22.x",
+      runtime: projectConfig.aws?.lambda?.runtime ?? "nodejs24.x",
       architecture: projectConfig.aws?.lambda?.architecture ?? "arm64"
     }
   };

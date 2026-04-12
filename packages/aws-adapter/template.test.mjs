@@ -49,7 +49,7 @@ function createConfig() {
       dependencyStore: { tableName: "{stackPrefix}_s3te_dependencies_{project}" },
       contentStore: { tableName: "{stackPrefix}_s3te_content_{project}", contentIdIndexName: "contentid" },
       invalidationStore: { tableName: "{stackPrefix}_s3te_invalidations_{project}", debounceSeconds: 60 },
-      lambda: { runtime: "nodejs22.x", architecture: "arm64" }
+      lambda: { runtime: "nodejs24.x", architecture: "arm64" }
     },
     integrations: {
       sitemap: {
@@ -189,7 +189,7 @@ test("cloudformation template derives non-prod aliases and bucket names from the
         dependencyStore: { tableName: "{stackPrefix}_s3te_dependencies_{project}" },
         contentStore: { tableName: "{stackPrefix}_s3te_content_{project}", contentIdIndexName: "contentid" },
         invalidationStore: { tableName: "{stackPrefix}_s3te_invalidations_{project}", debounceSeconds: 60 },
-        lambda: { runtime: "nodejs22.x", architecture: "arm64" }
+        lambda: { runtime: "nodejs24.x", architecture: "arm64" }
       },
       integrations: {
         sitemap: {
@@ -260,7 +260,7 @@ test("cloudformation template wires sitemap updates from output buckets when sit
         dependencyStore: { tableName: "{stackPrefix}_s3te_dependencies_{project}" },
         contentStore: { tableName: "{stackPrefix}_s3te_content_{project}", contentIdIndexName: "contentid" },
         invalidationStore: { tableName: "{stackPrefix}_s3te_invalidations_{project}", debounceSeconds: 60 },
-        lambda: { runtime: "nodejs22.x", architecture: "arm64" }
+        lambda: { runtime: "nodejs24.x", architecture: "arm64" }
       },
       integrations: {
         sitemap: {

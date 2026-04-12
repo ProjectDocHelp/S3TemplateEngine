@@ -249,7 +249,7 @@ export function buildCoreConfigFromEnvironment(manifest, environmentName) {
         debounceSeconds: 60
       },
       lambda: {
-        runtime: "nodejs22.x",
+        runtime: "nodejs24.x",
         architecture: "arm64"
       }
     },

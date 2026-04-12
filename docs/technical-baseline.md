@@ -16,7 +16,7 @@ Dieses Dokument legt die technische Grundlinie fuer die Neuimplementierung fest.
 ### Sprache und Runtime
 
 - Implementierungssprache: JavaScript
-- Node.js-Zielruntime: `nodejs22.x`
+- Node.js-Zielruntime: `nodejs24.x`
 - lokales Minimum: Node.js 20
 - Modulsystem: ESM
 

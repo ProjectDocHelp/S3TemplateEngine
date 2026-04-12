@@ -175,10 +175,10 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "runtime": {
-              "type": "string",
-              "enum": ["nodejs22.x"]
-            },
+              "runtime": {
+                "type": "string",
+                "enum": ["nodejs24.x"]
+              },
             "architecture": {
               "type": "string",
               "enum": ["arm64", "x86_64"]

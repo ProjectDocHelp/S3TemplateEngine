@@ -66,7 +66,7 @@ Root
 - `contentStore.contentIdIndexName`: `contentid`
 - `invalidationStore.tableName`: `{stackPrefix}_s3te_invalidations_{project}`
 - `invalidationStore.debounceSeconds`: `60`
-- `lambda.runtime`: `nodejs22.x`
+- `lambda.runtime`: `nodejs24.x`
 - `lambda.architecture`: `arm64`
 
 ### `integrations.webiny`
@@ -152,7 +152,7 @@ Root
     debounceSeconds?: number;
   };
   lambda?: {
-    runtime?: "nodejs22.x";
+    runtime?: "nodejs24.x";
     architecture?: "arm64" | "x86_64";
   };
 }

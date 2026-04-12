@@ -291,7 +291,7 @@ function schemaTemplate() {
             properties: {
               runtime: {
                 type: "string",
-                enum: ["nodejs22.x"]
+                enum: ["nodejs24.x"]
               },
               architecture: {
                 type: "string",

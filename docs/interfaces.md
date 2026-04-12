@@ -73,7 +73,7 @@ export interface AwsConfig {
     debounceSeconds?: number;
   };
   lambda?: {
-    runtime?: "nodejs22.x";
+    runtime?: "nodejs24.x";
     architecture?: "arm64" | "x86_64";
   };
 }
@@ -169,7 +169,7 @@ export interface ResolvedAwsConfig {
     debounceSeconds: number;
   };
   lambda: {
-    runtime: "nodejs22.x";
+    runtime: "nodejs24.x";
     architecture: "arm64" | "x86_64";
   };
 }

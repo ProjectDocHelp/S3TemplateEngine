@@ -968,6 +968,8 @@ You do not need Webiny to use S3TE. Start with plain HTML first. Add Webiny only
 
 The supported target for this optional path is Webiny 6.x on its standard AWS deployment model.
 
+Important for the Webiny path: S3TE does not turn on DynamoDB Streams on your Webiny table for you. You must enable the stream manually on the Webiny source table. S3TE uses that stream as the trigger source for CMS-driven rerendering.
+
 ![S3TE with Webiny](https://user-images.githubusercontent.com/100029932/174443536-7af050de-eea7-4456-81aa-a173863b6ec9.png)
 
 <details>
@@ -984,7 +986,10 @@ This section assumes that S3TE is already installed and deployed. The S3TE-speci
 
 1. Install Webiny in AWS and finish the Webiny setup first.
 2. Find the Webiny DynamoDB table that contains the CMS entries you want S3TE to mirror.
-3. Upgrade your existing S3TE config for Webiny:
+3. Manually enable DynamoDB Streams on that Webiny table before the first S3TE deploy with Webiny enabled.
+   Use `NEW_AND_OLD_IMAGES`.
+   Without that stream, `s3te deploy --env <name>` cannot wire the Webiny trigger and fails because the table has no `LatestStreamArn`.
+4. Upgrade your existing S3TE config for Webiny:
 
 ```bash
 npx s3te migrate --enable-webiny --webiny-source-table webiny-1234567 --webiny-tenant root --webiny-model article --write
@@ -1015,22 +1020,29 @@ npx s3te migrate --env test --enable-webiny --webiny-source-table webiny-test-12
 npx s3te migrate --env prod --enable-webiny --webiny-source-table webiny-live-1234567 --webiny-tenant root --write
 ```
 
-4. Turn on DynamoDB Streams for the Webiny source table with `NEW_AND_OLD_IMAGES`.
-5. If your S3TE language keys are not identical to your Webiny locales, add `webinyLocale` per language in `s3te.config.json`, for example `"en": { "webinyLocale": "en-US" }`.
-6. If your Webiny installation hosts multiple tenants, keep `integrations.webiny.tenant` set so S3TE only mirrors the intended tenant.
-7. Check the project again:
+5. Verify again that DynamoDB Streams are enabled on the Webiny source table with `NEW_AND_OLD_IMAGES`.
+   You enable this manually in the AWS console on the Webiny DynamoDB table under `Exports and streams`.
+   S3TE creates the Lambda event source mapping during deploy, but it does not create or enable the table stream itself.
+6. If your S3TE language keys are not identical to your Webiny locales, add `webinyLocale` per language in `s3te.config.json`, for example `"en": { "webinyLocale": "en-US" }`.
+7. If your Webiny installation hosts multiple tenants, keep `integrations.webiny.tenant` set so S3TE only mirrors the intended tenant.
+8. Check the project again:
 
 ```bash
 npx s3te doctor --env prod
 ```
 
-8. Redeploy the existing S3TE environment:
+9. Redeploy the existing S3TE environment:
 
 ```bash
 npx s3te deploy --env prod
 ```
 
 That deploy updates the existing environment stack and adds the Webiny mirror resources to it. You do not need a fresh S3TE installation. After that, Webiny content changes flow through the deployed AWS resources automatically; only template or asset changes still need `s3te sync --env <name>`.
+
+Manual versus automatic responsibilities in this step:
+
+- Manual: enable DynamoDB Streams on the Webiny source table
+- Automatic during `s3te deploy`: read `LatestStreamArn`, create the Lambda event source mapping, and wire the S3TE Webiny mirror Lambda into the environment stack
 
 </details>
 

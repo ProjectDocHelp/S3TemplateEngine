@@ -89,6 +89,7 @@ test("webiny option cloudformation template contains only webiny mirror resource
     config: createConfig(),
     environment: "dev"
   });
+  const roleStatements = template.Resources.ExecutionRole.Properties.Policies[0].PolicyDocument.Statement;
 
   assert.equal(template.Parameters.ArtifactBucket.Type, "String");
   assert.equal(template.Parameters.ContentMirrorArtifactKey.Type, "String");
@@ -99,6 +100,18 @@ test("webiny option cloudformation template contains only webiny mirror resource
   assert.equal(template.Resources.ContentMirror.Properties.Environment.Variables.S3TE_CONTENT_TABLE, "DEV_s3te_content_mysite");
   assert.equal(template.Resources.ContentMirror.Properties.Environment.Variables.S3TE_RENDER_WORKER_NAME, "DEV_s3te_render_worker");
   assert.equal(template.Resources.ContentMirrorEventSourceMapping.Properties.EventSourceArn.Ref, "WebinySourceTableStreamArn");
+  assert.ok(roleStatements.some((statement) => (
+    Array.isArray(statement.Action)
+    && statement.Action.includes("dynamodb:GetRecords")
+    && statement.Action.includes("dynamodb:GetShardIterator")
+    && statement.Action.includes("dynamodb:DescribeStream")
+    && statement.Resource?.Ref === "WebinySourceTableStreamArn"
+  )));
+  assert.ok(roleStatements.some((statement) => (
+    Array.isArray(statement.Action)
+    && statement.Action.includes("dynamodb:ListStreams")
+    && statement.Resource === "*"
+  )));
   assert.equal(template.Resources.websiteenDistribution, undefined);
   assert.deepEqual(template.Outputs.ContentMirrorFunctionName.Value, "DEV_s3te_content_mirror");
 });

@@ -81,7 +81,7 @@ function buildFunctionNames(runtimeConfig) {
   };
 }
 
-function createExecutionRole(roleName) {
+function createExecutionRole(roleName, extraStatements = []) {
   return {
     Type: "AWS::IAM::Role",
     Properties: {
@@ -128,7 +128,8 @@ function createExecutionRole(roleName) {
                   "cloudfront:CreateInvalidation"
                 ],
                 Resource: "*"
-              }
+              },
+              ...extraStatements
             ]
           }
         }
@@ -599,7 +600,24 @@ export function buildWebinyCloudFormationTemplate({ config, environment }) {
       }
     },
     Resources: {
-      ExecutionRole: createExecutionRole(`${runtimeConfig.stackPrefix}_s3te_webiny_lambda_runtime`),
+      ExecutionRole: createExecutionRole(`${runtimeConfig.stackPrefix}_s3te_webiny_lambda_runtime`, [
+        {
+          Effect: "Allow",
+          Action: [
+            "dynamodb:DescribeStream",
+            "dynamodb:GetRecords",
+            "dynamodb:GetShardIterator"
+          ],
+          Resource: { Ref: "WebinySourceTableStreamArn" }
+        },
+        {
+          Effect: "Allow",
+          Action: [
+            "dynamodb:ListStreams"
+          ],
+          Resource: "*"
+        }
+      ]),
       ContentMirror: lambdaRuntimeProperties(
         runtimeConfig,
         "ExecutionRole",

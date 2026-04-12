@@ -633,6 +633,22 @@ npx s3te migrate --enable-webiny --webiny-source-table webiny-1234567 --webiny-t
 
 `staticContent` and `staticCodeContent` are kept automatically. Add `--webiny-model` once per custom model you want S3TE to mirror.
 
+`--webiny-model article` means:
+
+- `article` is the technical Webiny model ID, not the human-readable label shown in the CMS UI.
+- S3TE adds that model ID to `integrations.webiny.relevantModels` in `s3te.config.json`.
+- Only Webiny stream records whose model is listed in `relevantModels` are mirrored into the S3TE content table and can trigger rerendering.
+- If you omit `--webiny-model`, only the built-in defaults `staticContent` and `staticCodeContent` are mirrored.
+- You can pass the flag multiple times for multiple models, for example `--webiny-model article --webiny-model news --webiny-model event`.
+
+That makes the migration example above equivalent to a config that contains:
+
+```json
+"relevantModels": ["article", "staticContent", "staticCodeContent"]
+```
+
+Use this for every Webiny model whose entries should be available to S3TE template commands like `dbitem`, `dbmulti`, `dbmultifile`, `dbmultifileitem`, or `dbpart`.
+
 If different environments should read from different Webiny installations or tenants, run the migration per environment:
 
 ```bash

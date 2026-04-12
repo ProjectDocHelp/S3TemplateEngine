@@ -724,7 +724,8 @@ Filter notes:
 - multiple clauses are combined with logical `AND`
 - `__typename` matches the content model, for example `article`
 - supported legacy value wrappers are `S`, `N`, `BOOL`, `NULL`, and `L`
-- results are sorted deterministically; numeric `order` comes first, then `contentId`, then `id`
+- results are sorted deterministically; items with a numeric field `order` are rendered first in ascending order, then items without a numeric `order`, then `contentId`, then `id`
+- this also works with mirrored Webiny content if the model contains a field with the exact field ID `order` and type `number`
 
 **Example**
 
@@ -1017,6 +1018,13 @@ That makes the option example above equivalent to a config that contains:
 ```
 
 Use this for every Webiny model whose entries should be available to S3TE template commands like `dbitem`, `dbmulti`, `dbmultifile`, `dbmultifileitem`, or `dbpart`.
+
+If a Webiny model should control the output order for `dbmulti` or `dbmultifile`, add a field with:
+
+- field ID `order`
+- field type `number`
+
+S3TE sorts matching items by that numeric `order` in ascending order. Items without a numeric `order` stay at the end.
 
 If different environments should read from different Webiny installations or tenants, run the option command per environment:
 

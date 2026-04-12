@@ -83,13 +83,42 @@ function compareFilter(actual, expected, filterType) {
   return actual === expected;
 }
 
+function coerceNumericOrderValue(value) {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  const legacyValue = legacyAttributeValueToPlain(value);
+  if (legacyValue !== undefined && legacyValue !== value) {
+    return coerceNumericOrderValue(legacyValue);
+  }
+
+  return null;
+}
+
+function readOrderValue(item) {
+  const candidate = item?.values?.order ?? item?.order;
+  return coerceNumericOrderValue(candidate);
+}
+
 function compareOrder(a, b) {
-  const aHasOrder = typeof a.values?.order === "number";
-  const bHasOrder = typeof b.values?.order === "number";
+  const aOrder = readOrderValue(a);
+  const bOrder = readOrderValue(b);
+  const aHasOrder = aOrder !== null;
+  const bHasOrder = bOrder !== null;
 
   if (aHasOrder && bHasOrder) {
-    if (a.values.order !== b.values.order) {
-      return a.values.order - b.values.order;
+    if (aOrder !== bOrder) {
+      return aOrder - bOrder;
     }
   } else if (aHasOrder && !bHasOrder) {
     return -1;

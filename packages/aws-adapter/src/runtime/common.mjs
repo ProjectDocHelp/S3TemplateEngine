@@ -17,6 +17,7 @@ import {
   BatchWriteCommand,
   DeleteCommand,
   DynamoDBDocumentClient,
+  GetCommand,
   PutCommand,
   QueryCommand,
   ScanCommand
@@ -143,6 +144,7 @@ export function createAwsClients(region = process.env.AWS_REGION) {
       invoke: InvokeCommand
     }),
     dynamo: wrapCommandClient(dynamoDocumentClient, {
+      get: GetCommand,
       query: QueryCommand,
       scan: ScanCommand,
       batchWrite: BatchWriteCommand,

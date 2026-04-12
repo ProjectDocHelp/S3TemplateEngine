@@ -99,6 +99,7 @@ test("webiny option cloudformation template contains only webiny mirror resource
   assert.equal(template.Resources.ContentMirror.Properties.Handler, "packages/aws-adapter/src/runtime/content-mirror.handler");
   assert.equal(template.Resources.ContentMirror.Properties.Environment.Variables.S3TE_CONTENT_TABLE, "DEV_s3te_content_mysite");
   assert.equal(template.Resources.ContentMirror.Properties.Environment.Variables.S3TE_RENDER_WORKER_NAME, "DEV_s3te_render_worker");
+  assert.equal(template.Resources.ContentMirror.Properties.Environment.Variables.S3TE_WEBINY_SOURCE_TABLE, "webiny-table");
   assert.equal(template.Resources.ContentMirrorEventSourceMapping.Properties.EventSourceArn.Ref, "WebinySourceTableStreamArn");
   assert.ok(roleStatements.some((statement) => (
     Array.isArray(statement.Action)

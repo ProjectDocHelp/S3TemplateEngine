@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { gzipSync } from "node:zlib";
 
 import { normalizeContentItem, matchesConfiguredTenant } from "./src/runtime/content-mirror.mjs";
 import { DynamoContentRepository } from "./src/runtime/common.mjs";
@@ -45,9 +46,56 @@ test("normalizeContentItem understands Webiny-style entryId, modelId, locale, te
 test("matchesConfiguredTenant only accepts the configured Webiny tenant when provided", () => {
   assert.equal(matchesConfiguredTenant({ tenant: "root" }, "root"), true);
   assert.equal(matchesConfiguredTenant({ tenantId: "root" }, "root"), true);
+  assert.equal(matchesConfiguredTenant({ data: { tenant: "root" } }, "root"), true);
   assert.equal(matchesConfiguredTenant({ tenant: "other" }, "root"), false);
   assert.equal(matchesConfiguredTenant({}, "root"), false);
   assert.equal(matchesConfiguredTenant({ tenant: "root" }, ""), true);
+});
+
+test("normalizeContentItem understands Webiny V6 latest records with nested data and storage ids", () => {
+  const compressedContent = gzipSync("console.log('hello');").toString("base64");
+  const item = normalizeContentItem({
+    PK: "T#root#CMS#CME#entry-1",
+    SK: "L",
+    TYPE: "cms.entry.l",
+    data: {
+      id: "entry-1#0001",
+      entryId: "entry-1",
+      modelId: "staticCodeContent",
+      tenant: "root",
+      status: "published",
+      createdOn: "2026-04-11T08:00:00.000Z",
+      lastPublishedOn: "2026-04-12T08:05:00.000Z",
+      values: {
+        "text@contentidField": "description",
+        "long-text@contentField": {
+          compression: "gzip",
+          value: compressedContent
+        }
+      }
+    }
+  }, {
+    modelFields: [
+      {
+        fieldId: "contentid",
+        storageId: "text@contentidField",
+        type: "text"
+      },
+      {
+        fieldId: "content",
+        storageId: "long-text@contentField",
+        type: "long-text"
+      }
+    ]
+  });
+
+  assert.equal(item.id, "entry-1#0001");
+  assert.equal(item.contentId, "description");
+  assert.equal(item.model, "staticCodeContent");
+  assert.equal(item.tenant, "root");
+  assert.equal(item.values.contentid, "description");
+  assert.equal(item.values.content, "console.log('hello');");
+  assert.equal(item.updatedAt, "2026-04-12T08:05:00.000Z");
 });
 
 test("DynamoContentRepository prefers locale-matched items for Webiny localized content", async () => {

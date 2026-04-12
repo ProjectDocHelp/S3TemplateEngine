@@ -36,6 +36,12 @@ function normalizeKey(value) {
   return String(value).replace(/\\/g, "/");
 }
 
+function matchesProjectRelativeRoot(key, root) {
+  const normalizedKey = normalizeKey(key);
+  const normalizedRoot = normalizeKey(root);
+  return normalizedKey === normalizedRoot || normalizedKey.startsWith(`${normalizedRoot}/`);
+}
+
 function buildSourceId(environment, variant, language, outputKey) {
   return `${environment}#${variant}#${language}#${outputKey}`;
 }
@@ -312,17 +318,18 @@ export class S3TemplateRepository {
     const normalized = normalizeKey(key);
     const activeVariant = this.environmentManifest.variants[this.activeVariantName];
 
+    if (matchesProjectRelativeRoot(normalized, activeVariant.partDir)) {
+      const normalizedPartDir = normalizeKey(activeVariant.partDir);
+      return {
+        bucket: activeVariant.codeBucket,
+        objectKey: `part/${normalized.slice(normalizedPartDir.length + 1)}`
+      };
+    }
+
     if (normalized.startsWith(`${this.activeVariantName}/`)) {
       return {
         bucket: activeVariant.codeBucket,
         objectKey: normalized
-      };
-    }
-
-    if (normalized.startsWith(`${activeVariant.partDir}/`)) {
-      return {
-        bucket: activeVariant.codeBucket,
-        objectKey: `part/${normalized.slice(activeVariant.partDir.length + 1)}`
       };
     }
 

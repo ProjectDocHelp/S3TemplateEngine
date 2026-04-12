@@ -96,3 +96,45 @@ test("renderSourceTemplate tracks generated-template dependencies for dbmultifil
     dependency.kind === "generated-template" && dependency.id === "website/article.html"
   )));
 });
+
+test("renderSourceTemplate renders stringified Webiny rich text payloads via dbpart and dbitem as html", async () => {
+  const config = createConfig();
+  const templateRepository = new InMemoryTemplateRepository({
+    "website/index.html": "<div class='intro'><dbpart>home</dbpart></div><dbmulti>{\"filter\":[{\"__typename\":{\"S\":\"article\"}}],\"template\":\"<section><dbitem>content</dbitem></section>\"}</dbmulti>"
+  });
+  const richTextPayload = JSON.stringify({
+    state: "{\"root\":{}}",
+    html: "<p>Hello <strong>world</strong></p>"
+  });
+  const contentRepository = new InMemoryContentRepository([
+    {
+      id: "home-1",
+      contentId: "home",
+      model: "staticContent",
+      values: {
+        content: richTextPayload
+      }
+    },
+    {
+      id: "article-1",
+      contentId: "article-one",
+      model: "article",
+      values: {
+        content: richTextPayload
+      }
+    }
+  ]);
+
+  const results = await renderSourceTemplate({
+    config,
+    templateRepository,
+    contentRepository,
+    environment: "dev",
+    variantName: "website",
+    languageCode: "en",
+    sourceKey: "website/index.html"
+  });
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].artifact.body, "<div class='intro'><p>Hello <strong>world</strong></p></div><section><p>Hello <strong>world</strong></p></section>");
+});

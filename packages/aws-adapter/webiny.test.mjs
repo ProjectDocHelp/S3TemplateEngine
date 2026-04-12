@@ -98,6 +98,45 @@ test("normalizeContentItem understands Webiny V6 latest records with nested data
   assert.equal(item.updatedAt, "2026-04-12T08:05:00.000Z");
 });
 
+test("normalizeContentItem extracts html from compressed stringified Webiny rich text payloads", () => {
+  const richTextPayload = JSON.stringify({
+    state: "{\"root\":{}}",
+    html: "<p>Hello <strong>world</strong></p>"
+  });
+  const compressedContent = gzipSync(richTextPayload).toString("base64");
+  const item = normalizeContentItem({
+    data: {
+      id: "entry-2#0001",
+      entryId: "entry-2",
+      modelId: "staticContent",
+      tenant: "root",
+      status: "published",
+      values: {
+        "text@contentidField": "home",
+        "long-text@contentField": {
+          compression: "gzip",
+          value: compressedContent
+        }
+      }
+    }
+  }, {
+    modelFields: [
+      {
+        fieldId: "contentid",
+        storageId: "text@contentidField",
+        type: "text"
+      },
+      {
+        fieldId: "content",
+        storageId: "long-text@contentField",
+        type: "long-text"
+      }
+    ]
+  });
+
+  assert.equal(item.values.content, "<p>Hello <strong>world</strong></p>");
+});
+
 test("DynamoContentRepository prefers locale-matched items for Webiny localized content", async () => {
   const items = [
     { id: "1", contentId: "article-123", locale: "en-US", values: { title: "US" } },

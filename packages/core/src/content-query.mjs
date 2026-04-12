@@ -22,6 +22,23 @@ function legacyAttributeValueToPlain(attribute) {
   return undefined;
 }
 
+function maybeParseStructuredString(value) {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
 function readComparableValue(item, field) {
   if (field === "__typename") {
     return item.model;
@@ -159,12 +176,14 @@ export function readContentField(item, field, language) {
 }
 
 export function serializeContentValue(value) {
-  if (value == null) {
+  const normalizedValue = maybeParseStructuredString(value);
+
+  if (normalizedValue == null) {
     return "";
   }
 
-  if (Array.isArray(value)) {
-    return value.map((entry) => {
+  if (Array.isArray(normalizedValue)) {
+    return normalizedValue.map((entry) => {
       const text = typeof entry === "string" && entry.includes("-")
         ? entry.slice(entry.lastIndexOf("-") + 1)
         : String(entry);
@@ -172,5 +191,14 @@ export function serializeContentValue(value) {
     }).join("");
   }
 
-  return String(value);
+  if (normalizedValue && typeof normalizedValue === "object") {
+    if (typeof normalizedValue.html === "string") {
+      return normalizedValue.html;
+    }
+    if (typeof normalizedValue.text === "string") {
+      return normalizedValue.text;
+    }
+  }
+
+  return String(normalizedValue);
 }

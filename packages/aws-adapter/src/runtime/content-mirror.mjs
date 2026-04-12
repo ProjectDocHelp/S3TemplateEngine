@@ -106,7 +106,27 @@ function serializeStructuredValue(value) {
   return null;
 }
 
+function maybeParseStructuredString(value) {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    return value;
+  }
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
 function toSimpleValue(value) {
+  const normalizedValue = maybeParseStructuredString(value);
+
+  value = normalizedValue;
   if (value == null) {
     return null;
   }

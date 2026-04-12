@@ -140,13 +140,16 @@ flowchart TD
   A[Projekt in VSCode oeffnen] --> B[npm install]
   B --> C[npx s3te init]
   C --> D[npx s3te validate]
-  D --> E[npx s3te render --env dev]
-  E --> F[npx s3te test]
-  F --> G{Stack oder Config geaendert?}
-  G -->|ja| H[npx s3te deploy --env dev]
-  G -->|nein| I[npx s3te sync --env dev]
-  I --> J[In AWS reagiert die laufende S3TE]
-  H --> J
+  D --> E{Live-Webiny-Inhalt lokal testen?}
+  E -->|ja| F[npx s3te download-content --env dev]
+  E -->|nein| G[npx s3te render --env dev]
+  F --> G
+  G --> H[npx s3te test]
+  H --> I{Stack oder Config geaendert?}
+  I -->|ja| J[npx s3te deploy --env dev]
+  I -->|nein| K[npx s3te sync --env dev]
+  K --> L[In AWS reagiert die laufende S3TE]
+  J --> L
 ```
 
 ## CLI-Referenz fuer lokale Entwicklung
@@ -176,6 +179,13 @@ flowchart TD
 - fuehrt die Testdateien aus `offline/tests/` oder alternativ `tests/` mit dem Node Built-in Test Runner aus
 - Projekt-Tests koennen bei Bedarf `@projectdochelp/s3te/testkit` direkt importieren
 - nutzt in der Referenzimplementierung den Node Built-in Test Runner
+
+### `s3te download-content`
+
+- laedt den gespiegelten Inhalt aus der S3TE-Content-Tabelle des gewaehlten Environments
+- schreibt standardmaessig nach `offline/content/items.json`
+- ist der empfohlene lokale Vorbereitungsschritt, wenn `dbpart`, `dbmulti` oder andere content-getriebene Tags gegen echten AWS-/Webiny-Inhalt getestet werden sollen
+- bereinigt Dubletten und behaelt pro `contentId` und Locale nur den neuesten gespiegelten Datensatz
 
 ### `s3te package`
 

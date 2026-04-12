@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   configureProjectOption,
   deployProject,
+  downloadProjectContent,
   doctorProject,
   loadResolvedConfig,
   packageProject,
@@ -82,6 +83,7 @@ function printHelp() {
     "  validate\n" +
     "  render\n" +
     "  test\n" +
+    "  download-content\n" +
     "  package\n" +
     "  sync\n" +
     "  deploy\n" +
@@ -249,6 +251,41 @@ async function main() {
 
     const exitCode = await runProjectTests(cwd);
     process.exitCode = exitCode;
+    return;
+  }
+
+  if (command === "download-content") {
+    const loaded = await loadConfigForCommand(cwd, options.config);
+    if (!loaded.ok) {
+      if (wantsJson) {
+        printJson("download-content", false, loaded.warnings, loaded.errors, startedAt);
+      } else {
+        for (const error of loaded.errors) {
+          process.stderr.write(`${error.code}: ${error.message}\n`);
+        }
+      }
+      process.exitCode = 2;
+      return;
+    }
+
+    if (!options.env) {
+      process.stderr.write("download-content requires --env <name>\n");
+      process.exitCode = 1;
+      return;
+    }
+
+    const report = await downloadProjectContent(cwd, loaded.config, {
+      environment: asArray(options.env)[0],
+      out: options.out,
+      profile: options.profile
+    });
+
+    if (wantsJson) {
+      printJson("download-content", true, [], [], startedAt, report);
+      return;
+    }
+
+    process.stdout.write(`Downloaded ${report.writtenItems} content item(s) into ${report.outputPath}\n`);
     return;
   }
 

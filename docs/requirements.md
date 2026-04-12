@@ -90,16 +90,17 @@ S3TemplateEngine (S3TE) bleibt eine ultra-leichte, serverless Engine fuer statis
 - Der AWS-Adapter reagiert auf S3- und optionale Content-Events.
 - Zielobjekte werden in S3 publiziert.
 - CloudFront-Invalidierungen werden entkoppelt und gebuendelt.
-- Optionale Laufzeitfeatures wie Sitemap oder Webiny muessen ueber denselben Environment-Stack aktivierbar sein.
+- Optionale Laufzeitfeatures wie Sitemap oder Webiny muessen pro Environment aktivierbar sein.
 - CloudFormation bleibt fuer die erste Rewrite-Generation ein unterstuetztes Deployment-Ziel.
 - `s3te deploy --env <name>` rollt die Infrastruktur aus und synchronisiert die aktuellen Projektquellen in die konfigurierten Code-Buckets.
 - `s3te sync --env <name>` synchronisiert aktuelle Projektquellen in eine bereits vorhandene Umgebung, ohne CloudFormation erneut auszurollen.
-- V1 verwendet genau einen persistenten CloudFormation-Stack pro Umgebung und fuer echte Deploy-Laeufe zusaetzlich genau einen temporaeren Packaging-Stack.
+- V1 verwendet genau einen persistenten Haupt-Stack pro Umgebung und fuer echte Deploy-Laeufe zusaetzlich genau einen temporaeren Packaging-Stack; einzelne Optionen duerfen zusaetzliche persistente Option-Stacks verwenden.
 
 ### FR-9 Lokales Entwickeln und Testen
 
 - Ein kompletter Render-Lauf muss lokal ohne AWS moeglich sein.
 - Projekttests muessen lokal ueber den Node Built-in Test Runner ausfuehrbar sein.
+- Der gespiegelte Live-Content aus der S3TE-Content-Tabelle muss fuer lokales Rendern und Testen als Datei-Snapshot herunterladbar sein.
 - Das Testkit muss dafuer mindestens In-Memory-Template- und Content-Repositories, einen Memory-Dependency-Store sowie sammelnde Output- und Invalidation-Testadapter bereitstellen.
 - Fixture-Lader fuer lokale Content-Dateien muessen vorgesehen sein.
 - Der lokale Entwicklungsworkflow auf Basis von VSCode muss dokumentiert und offiziell unterstuetzt sein.
@@ -112,6 +113,7 @@ Die CLI stellt mindestens diese Kommandos bereit:
 - `s3te validate`
 - `s3te render`
 - `s3te test`
+- `s3te download-content`
 - `s3te package`
 - `s3te sync`
 - `s3te deploy`

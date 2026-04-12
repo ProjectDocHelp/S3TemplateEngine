@@ -447,17 +447,21 @@ Once the project is installed, your everyday loop splits into two paths: deploy 
 
 1. Edit files in `app/part/` and `app/website/`.
 2. If you use content-driven tags without Webiny, edit `offline/content/en.json` or `offline/content/items.json`.
-3. Validate and render locally.
-4. Run your tests.
-5. Use `deploy` for the first installation or after infrastructure/config/runtime changes.
-6. Use `sync` for day-to-day source publishing into the code buckets.
+3. If you use Webiny and want the current mirrored live content locally, download the content snapshot first.
+4. Validate and render locally.
+5. Run your tests.
+6. Use `deploy` for the first installation or after infrastructure/config/runtime changes.
+7. Use `sync` for day-to-day source publishing into the code buckets.
 
 ```bash
+npx s3te download-content --env dev
 npx s3te validate
 npx s3te render --env dev
 npx s3te test
 npx s3te sync --env dev
 ```
+
+If you are not using Webiny yet, skip `download-content` and keep editing the local JSON files directly.
 
 Use a full deploy only when needed:
 
@@ -480,6 +484,7 @@ Once Webiny is installed and the stack is deployed with Webiny enabled, CMS cont
 | `s3te validate` | Checks config and template syntax without rendering outputs. |
 | `s3te render --env <name>` | Renders locally into `offline/S3TELocal/preview/<env>/...`. |
 | `s3te test` | Runs the project tests from `offline/tests/`. |
+| `s3te download-content --env <name>` | Downloads the mirrored S3TE content table into `offline/content/items.json` for local render and test runs. |
 | `s3te package --env <name>` | Builds the AWS deployment artifacts without deploying them yet. |
 | `s3te sync --env <name>` | Uploads current project sources into the configured code buckets. |
 | `s3te doctor --env <name>` | Checks local machine and AWS access before deploy. |
@@ -1038,6 +1043,16 @@ npx s3te deploy --env prod
 ```
 
 That deploy updates the existing environment stack and, when Webiny is enabled, also deploys the separate Webiny option stack for `content-mirror` and its DynamoDB stream mapping. You do not need a fresh S3TE installation. After that, Webiny content changes flow through the deployed AWS resources automatically; only template or asset changes still need `s3te sync --env <name>`.
+
+10. To test current live CMS content locally, pull the mirrored S3TE content table into the local fixture folder before rendering or running tests:
+
+```bash
+npx s3te download-content --env prod
+npx s3te render --env prod
+npx s3te test
+```
+
+`download-content` reads the mirrored S3TE content table, keeps only the newest mirrored item per `contentId` and locale, and writes the result to `offline/content/items.json`. The normal local `dbpart`, `dbmulti`, `dbmultifile`, `dbitem`, and `dbmultifileitem` flow then reads from that file.
 
 Manual versus automatic responsibilities in this step:
 

@@ -5,7 +5,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { validateAndResolveProjectConfig } from "../core/src/index.mjs";
-import { configureProjectOption, doctorProject, runProjectTests, scaffoldProject, validateProject } from "./src/project.mjs";
+import { loadLocalContent } from "./src/fs-adapters.mjs";
+import { configureProjectOption, doctorProject, downloadProjectContent, runProjectTests, scaffoldProject, validateProject } from "./src/project.mjs";
 
 test("configureProjectOption can retrofit webiny onto an existing S3TE config", async () => {
   const optionResult = await configureProjectOption("s3te.config.json", {
@@ -362,6 +363,88 @@ test("runProjectTests executes scaffolded offline tests successfully", async (co
 
   const exitCode = await runProjectTests(projectDir);
   assert.equal(exitCode, 0);
+});
+
+test("downloadProjectContent writes a deduplicated local content snapshot for offline render and tests", async (context) => {
+  const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "s3te-content-"));
+  context.after(async () => {
+    await fs.rm(projectDir, { recursive: true, force: true });
+  });
+  await fs.mkdir(path.join(projectDir, "app", "website"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "part"), { recursive: true });
+
+  const resolved = await validateAndResolveProjectConfig({
+    project: {
+      name: "sop"
+    },
+    environments: {
+      test: {
+        awsRegion: "eu-west-1",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/test"
+      }
+    },
+    variants: {
+      website: {
+        defaultLanguage: "de",
+        languages: {
+          de: {
+            baseUrl: "example.com",
+            cloudFrontAliases: ["example.com"]
+          }
+        }
+      }
+    },
+    integrations: {
+      webiny: {
+        enabled: true,
+        sourceTableName: "webiny-1234567",
+        tenant: "root"
+      }
+    }
+  }, {
+    projectDir
+  });
+  assert.equal(resolved.ok, true);
+
+  const report = await downloadProjectContent(projectDir, resolved.config, {
+    environment: "test",
+    scanContentItemsFn: async () => ([
+      {
+        id: "entry#0001",
+        contentId: "description",
+        model: "staticCodeContent",
+        tenant: "root",
+        updatedAt: "2026-04-12T09:57:04.646Z",
+        values: {
+          content: "old"
+        }
+      },
+      {
+        id: "entry#0002",
+        contentId: "description",
+        model: "staticCodeContent",
+        tenant: "root",
+        updatedAt: "2026-04-12T11:06:51.693Z",
+        values: {
+          content: "new"
+        }
+      }
+    ])
+  });
+
+  const filePath = path.join(projectDir, "offline", "content", "items.json");
+  const writtenItems = JSON.parse(await fs.readFile(filePath, "utf8"));
+  const repository = await loadLocalContent(projectDir, resolved.config);
+  const item = await repository.getByContentId("description", "de");
+
+  assert.equal(report.tableName, "TEST_s3te_content_sop");
+  assert.equal(report.outputPath, "offline/content/items.json");
+  assert.equal(report.downloadedItems, 2);
+  assert.equal(report.writtenItems, 1);
+  assert.equal(report.deduplicatedItems, 1);
+  assert.deepEqual(writtenItems.map((entry) => entry.id), ["entry#0002"]);
+  assert.equal(item?.id, "entry#0002");
+  assert.equal(item?.values.content, "new");
 });
 
 test("scaffoldProject merges an existing npm-generated package.json", async (context) => {

@@ -185,9 +185,9 @@ Architektur allein reicht nicht. Die Implementierung muss diese Dokumente gemein
 
 ## Bewusste Architekturentscheidungen
 
-### AD-001 Ein Environment-Stack plus transienter Deploy-Stack
+### AD-001 Ein Haupt-Stack plus optionale Feature-Stacks
 
-Der Rewrite verwendet genau einen persistenten CloudFormation-Stack pro Umgebung und fuer echte Deploy-Laeufe zusaetzlich genau einen kurzen temporaeren Packaging-Stack. Das reduziert Noob-Komplexitaet massiv gegenueber dem Legacy-Aufbau mit Zusatz-Templates und haelt trotzdem alle von `deploy` angelegten AWS-Ressourcen innerhalb von CloudFormation.
+Der Rewrite verwendet genau einen persistenten Haupt-CloudFormation-Stack pro Umgebung und fuer echte Deploy-Laeufe zusaetzlich genau einen kurzen temporaeren Packaging-Stack. Optionale Features duerfen weitere persistente Option-Stacks hinzufuegen, wenn dadurch der Blast Radius kleiner bleibt, wie beim separaten Webiny-Stack.
 
 ### AD-002 Runtime-Manifest ausserhalb der Projektkonfiguration
 

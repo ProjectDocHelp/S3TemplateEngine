@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
 
 import {
   S3teError,
@@ -597,6 +599,114 @@ function normalizeStringList(values) {
     .filter(Boolean))];
 }
 
+function normalizeLocale(value) {
+  return value == null ? "" : String(value).trim().toLowerCase();
+}
+
+function comparableTimestamp(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  const timestamp = Date.parse(String(value ?? ""));
+  return Number.isFinite(timestamp) ? timestamp : -1;
+}
+
+function compareContentFreshness(left, right) {
+  const updatedDiff = comparableTimestamp(right.updatedAt) - comparableTimestamp(left.updatedAt);
+  if (updatedDiff !== 0) {
+    return updatedDiff;
+  }
+
+  const changedDiff = comparableTimestamp(right.lastChangedAt) - comparableTimestamp(left.lastChangedAt);
+  if (changedDiff !== 0) {
+    return changedDiff;
+  }
+
+  const createdDiff = comparableTimestamp(right.createdAt) - comparableTimestamp(left.createdAt);
+  if (createdDiff !== 0) {
+    return createdDiff;
+  }
+
+  const versionDiff = Number(right.version ?? -1) - Number(left.version ?? -1);
+  if (versionDiff !== 0) {
+    return versionDiff;
+  }
+
+  return String(right.id ?? "").localeCompare(String(left.id ?? ""));
+}
+
+function buildContentIdentityKey(item) {
+  return [
+    item.contentId ?? item.id ?? "",
+    item.model ?? "",
+    item.tenant ?? "",
+    normalizeLocale(item.locale)
+  ].join("#");
+}
+
+function compareDownloadedContentOrder(left, right) {
+  return String(left.contentId ?? left.id ?? "").localeCompare(String(right.contentId ?? right.id ?? ""))
+    || normalizeLocale(left.locale).localeCompare(normalizeLocale(right.locale))
+    || String(left.model ?? "").localeCompare(String(right.model ?? ""))
+    || String(left.tenant ?? "").localeCompare(String(right.tenant ?? ""))
+    || compareContentFreshness(left, right);
+}
+
+function deduplicateContentItems(items) {
+  const latestItems = new Map();
+
+  for (const item of items ?? []) {
+    const identityKey = buildContentIdentityKey(item);
+    const current = latestItems.get(identityKey);
+    if (!current || compareContentFreshness(item, current) < 0) {
+      latestItems.set(identityKey, item);
+    }
+  }
+
+  return [...latestItems.values()].sort(compareDownloadedContentOrder);
+}
+
+async function scanRemoteContentTable({ tableName, region, profile }) {
+  const previousProfile = process.env.AWS_PROFILE;
+  if (profile) {
+    process.env.AWS_PROFILE = profile;
+  }
+
+  const baseClient = new DynamoDBClient({ region });
+  const documentClient = DynamoDBDocumentClient.from(baseClient);
+  const items = [];
+  let lastEvaluatedKey;
+
+  try {
+    do {
+      const response = await documentClient.send(new ScanCommand({
+        TableName: tableName,
+        ExclusiveStartKey: lastEvaluatedKey
+      }));
+      items.push(...(response.Items ?? []));
+      lastEvaluatedKey = response.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+
+    return items;
+  } catch (error) {
+    throw new S3teError("AWS_AUTH_ERROR", `Unable to download content from DynamoDB table ${tableName}.`, {
+      tableName,
+      region,
+      cause: error.message
+    });
+  } finally {
+    baseClient.destroy();
+    if (profile) {
+      if (previousProfile === undefined) {
+        delete process.env.AWS_PROFILE;
+      } else {
+        process.env.AWS_PROFILE = previousProfile;
+      }
+    }
+  }
+}
+
 export async function loadResolvedConfig(projectDir, configPath) {
   const rawConfig = await loadProjectConfig(configPath);
   const result = await validateAndResolveProjectConfig(rawConfig, { projectDir });
@@ -859,6 +969,34 @@ export async function runProjectTests(projectDir) {
       resolve(code ?? 1);
     });
   });
+}
+
+export async function downloadProjectContent(projectDir, config, options = {}) {
+  assertKnownEnvironment(config, options.environment);
+  const runtimeConfig = buildEnvironmentRuntimeConfig(config, options.environment);
+  const tableName = runtimeConfig.tables.content;
+  const region = runtimeConfig.awsRegion;
+  const outputPath = path.resolve(projectDir, options.out ?? path.join("offline", "content", "items.json"));
+  const scanContentItemsFn = options.scanContentItemsFn ?? scanRemoteContentTable;
+
+  const remoteItems = await scanContentItemsFn({
+    tableName,
+    region,
+    profile: options.profile
+  });
+  const items = deduplicateContentItems(remoteItems);
+
+  await writeTextFile(outputPath, JSON.stringify(items, null, 2) + "\n");
+
+  return {
+    environment: options.environment,
+    region,
+    tableName,
+    outputPath: normalizePath(path.relative(projectDir, outputPath)),
+    downloadedItems: remoteItems.length,
+    writtenItems: items.length,
+    deduplicatedItems: Math.max(0, remoteItems.length - items.length)
+  };
 }
 
 export async function packageProject(projectDir, config, options = {}) {

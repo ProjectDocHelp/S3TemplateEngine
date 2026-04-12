@@ -11,6 +11,39 @@ function normalizeLocale(value) {
   return String(value).trim().toLowerCase();
 }
 
+function comparableTimestamp(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  const timestamp = Date.parse(String(value ?? ""));
+  return Number.isFinite(timestamp) ? timestamp : -1;
+}
+
+function compareContentFreshness(left, right) {
+  const updatedDiff = comparableTimestamp(right.updatedAt) - comparableTimestamp(left.updatedAt);
+  if (updatedDiff !== 0) {
+    return updatedDiff;
+  }
+
+  const changedDiff = comparableTimestamp(right.lastChangedAt) - comparableTimestamp(left.lastChangedAt);
+  if (changedDiff !== 0) {
+    return changedDiff;
+  }
+
+  const createdDiff = comparableTimestamp(right.createdAt) - comparableTimestamp(left.createdAt);
+  if (createdDiff !== 0) {
+    return createdDiff;
+  }
+
+  const versionDiff = Number(right.version ?? -1) - Number(left.version ?? -1);
+  if (versionDiff !== 0) {
+    return versionDiff;
+  }
+
+  return String(right.id ?? "").localeCompare(String(left.id ?? ""));
+}
+
 function buildLocaleCandidates(language, languageLocaleMap) {
   const requested = String(language ?? "").trim();
   const configured = String(languageLocaleMap?.[requested] ?? requested).trim();
@@ -20,7 +53,6 @@ function buildLocaleCandidates(language, languageLocaleMap) {
 function matchesRequestedLocale(item, language, languageLocaleMap) {
   return localeMatchScore(item?.locale, language, languageLocaleMap) > 0;
 }
-
 function localeMatchScore(itemLocale, language, languageLocaleMap) {
   if (!itemLocale) {
     return 1;
@@ -59,7 +91,11 @@ function filterItemsByRequestedLocale(items, language, languageLocaleMap) {
     }
 
     const bestScore = Math.max(...scored.map((entry) => entry.score));
-    return scored.filter((entry) => entry.score === bestScore).map((entry) => entry.item);
+    return scored
+      .filter((entry) => entry.score === bestScore)
+      .map((entry) => entry.item)
+      .sort(compareContentFreshness)
+      .slice(0, 1);
   });
 }
 

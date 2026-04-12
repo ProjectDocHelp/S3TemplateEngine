@@ -310,7 +310,7 @@ Webiny darf bewusst spaeter nachgeruestet werden:
 1. S3TE zuerst ohne Webiny deployen
 2. spaeter Webiny separat installieren
 3. danach `integrations.webiny` aktivieren
-4. anschliessend denselben Environment-Stack erneut deployen
+4. anschliessend das Environment erneut deployen, wodurch der Haupt-Stack und bei Bedarf der separate Webiny-Option-Stack aktualisiert werden
 
 Die Content-Tabelle des S3TE-Stacks existiert in V1 immer. Das Nachruesten von Webiny fuegt daher nur die Spiegelungs-Ressourcen und deren Event-Anbindung hinzu; es erfordert keinen kompletten Neuaufbau des Projekts.
 

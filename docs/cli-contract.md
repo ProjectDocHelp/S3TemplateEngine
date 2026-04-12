@@ -209,6 +209,47 @@ Pflichtverhalten:
 3. verwendet dafuer konkret die Testdateien aus `offline/tests/`, falls dieses Verzeichnis existiert, sonst aus `tests/`
 4. Projekt-Tests koennen das Subpath-Testkit `@projectdochelp/s3te/testkit` selbst importieren
 
+## `s3te download-content`
+
+Zweck:
+
+- den gespiegelten Live-Content aus der S3TE-Content-Tabelle fuer lokales Rendern und Testen nach `offline/content/` herunterladen
+
+Aufruf:
+
+```bash
+s3te download-content --env dev
+s3te download-content --env prod --out offline/content/items.json
+```
+
+Optionen:
+
+- `--env <name>` Pflicht
+- `--out <path>` optional
+- `--profile <name>` optional
+
+Pflichtverhalten:
+
+1. laedt und validiert die Projektkonfiguration
+2. liest die fuer das Environment aufgeloeste S3TE-Content-Tabelle aus DynamoDB
+3. behaelt pro `contentId`, Modell, Tenant und Locale nur den jeweils neuesten Datensatz
+4. schreibt die lokale Snapshot-Datei standardmaessig nach `offline/content/items.json`
+5. die erzeugte Datei muss vom normalen lokalen `render`- und `test`-Pfad ohne Sonderbehandlung genutzt werden koennen
+
+JSON-Report:
+
+```ts
+CliReport<{
+  environment: string;
+  region: string;
+  tableName: string;
+  outputPath: string;
+  downloadedItems: number;
+  writtenItems: number;
+  deduplicatedItems: number;
+}>
+```
+
 ## `s3te package`
 
 Zweck:
@@ -297,7 +338,7 @@ Pflichtverhalten:
 1. laedt und validiert die Projektkonfiguration
 2. fuehrt bei Bedarf `package` aus
 3. erstellt fuer den eigentlichen Deploy-Lauf einen temporaeren CloudFormation-Stack fuer fluechtige Packaging-Ressourcen
-4. deployed genau einen persistenten CloudFormation-Stack fuer die Umgebung
+4. deployed genau einen persistenten Haupt-CloudFormation-Stack fuer die Umgebung und bei aktivierten Optionen zusaetzlich die noetigen Option-Stacks
 5. aktiviert alle Features, die in der aufgeloesten Projektkonfiguration eingeschaltet sind
 6. synchronisiert Projektquellen mit demselben Source-Sync-Pfad wie `s3te sync` in alle konfigurierten Code-Buckets
 7. aktualisiert das Runtime-Manifest ueber einen zweiten Stack-Update im Environment-Stack

@@ -16,7 +16,8 @@ Der Core bleibt AWS-frei. Alles in diesem Dokument gehoert ausschliesslich in de
 
 V1 verwendet:
 
-- genau einen persistenten CloudFormation-Stack pro Umgebung
+- genau einen persistenten Haupt-CloudFormation-Stack pro Umgebung
+- optional weitere persistente Option-Stacks pro Umgebung, wenn Zusatzteile wie Webiny aktiviert sind
 - genau einen temporaeren CloudFormation-Stack waehrend eines echten Deploy-Laufs fuer Packaging-Artefakte
 
 Der temporaere Stack wird nach erfolgreichem oder fehlgeschlagenem Deploy wieder geloescht. Nur bei `--plan` bleibt er bestehen, solange das Change Set auf seine Artefakte verweist.

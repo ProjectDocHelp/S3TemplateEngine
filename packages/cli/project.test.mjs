@@ -622,6 +622,8 @@ test("scaffoldProject writes a default GitHub sync workflow", async (context) =>
   assert.match(workflow, /name: S3TE Sync/);
   assert.match(workflow, /aws-actions\/configure-aws-credentials@v4/);
   assert.match(workflow, /S3TE_ENVIRONMENT/);
+  assert.match(workflow, /known\.length === 1 \? known\[0\] : ''/);
+  assert.match(workflow, /Provide workflow_dispatch input "environment" or set GitHub repository variable S3TE_ENVIRONMENT/);
   assert.match(workflow, /steps\.s3te-config\.outputs\.aws_region/);
   assert.match(workflow, /run: npx s3te sync --env \$\{\{ steps\.s3te-config\.outputs\.environment \}\}/);
 });

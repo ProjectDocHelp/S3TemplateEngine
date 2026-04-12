@@ -293,6 +293,7 @@ GitHub preparation checklist:
 6. Add these repository variables:
    - `S3TE_ENVIRONMENT`
      Use the exact environment name from `s3te.config.json`, for example `dev`, `test`, or `prod`.
+     This is required for push-based sync when your project has more than one configured environment.
    - `S3TE_GIT_BRANCH` optional
      Use the branch that should trigger the sync job, for example `main`.
 7. In GitHub open `Settings -> Secrets and variables -> Actions -> Secrets`.
@@ -300,7 +301,9 @@ GitHub preparation checklist:
    - `AWS_ACCESS_KEY_ID`
    - `AWS_SECRET_ACCESS_KEY`
 9. Leave `.github/workflows/s3te-sync.yml` unchanged unless you want a custom CI flow. The scaffolded workflow already reads:
-   - the environment from `S3TE_ENVIRONMENT`
+   - the environment from the manual `workflow_dispatch` input when provided
+   - otherwise from `S3TE_ENVIRONMENT`
+   - otherwise automatically from `s3te.config.json` when exactly one environment exists
    - the branch from `S3TE_GIT_BRANCH` or defaults to `main`
    - the AWS region from `s3te.config.json`
 
@@ -327,6 +330,7 @@ Where to get the AWS values:
   [Manage access keys for IAM users](https://docs.aws.amazon.com/IAM/latest/UserGuide/access-keys-admin-managed.html).
 - `S3TE_ENVIRONMENT`
   This is the environment key from your `s3te.config.json`, for example `test` or `prod`.
+  For repositories with multiple environments, set this variable or pass the environment manually when starting `workflow_dispatch`.
 - AWS region
   You do not need to copy this into GitHub. The workflow reads `environments.<name>.awsRegion` directly from `s3te.config.json`.
 
@@ -376,10 +380,13 @@ The scaffolded workflow looks like this:
 # Required GitHub repository secrets:
 # - AWS_ACCESS_KEY_ID
 # - AWS_SECRET_ACCESS_KEY
-# Required GitHub repository variable:
+# Required GitHub repository variable for push-based sync in multi-environment projects:
 # - S3TE_ENVIRONMENT (for example dev, test, or prod)
 # Optional GitHub repository variable:
 # - S3TE_GIT_BRANCH (defaults to main)
+# Notes:
+# - workflow_dispatch can override the environment manually
+# - if s3te.config.json contains exactly one environment, no S3TE_ENVIRONMENT variable is needed
 # This workflow reads s3te.config.json at runtime and syncs all variants into their own code buckets.
 name: S3TE Sync
 on:
@@ -423,7 +430,7 @@ jobs:
           WORKFLOW_INPUT_ENVIRONMENT: ${{ inputs.environment }}
           REPOSITORY_S3TE_ENVIRONMENT: ${{ vars.S3TE_ENVIRONMENT }}
         run: |
-          node -e "const fs=require('node:fs'); const requested=(process.env.WORKFLOW_INPUT_ENVIRONMENT || process.env.REPOSITORY_S3TE_ENVIRONMENT || '').trim(); const config=JSON.parse(fs.readFileSync('s3te.config.json','utf8')); const known=Object.keys(config.environments ?? {}); if(!requested){ console.error('Missing GitHub repository variable S3TE_ENVIRONMENT.'); process.exit(1);} const environmentConfig=config.environments?.[requested]; if(!environmentConfig){ console.error('Unknown environment ' + requested + '. Known environments: ' + (known.length > 0 ? known.join(', ') : '(none)') + '.'); process.exit(1);} fs.appendFileSync(process.env.GITHUB_OUTPUT, 'environment=' + requested + '\n'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'aws_region=' + environmentConfig.awsRegion + '\n');"
+          node -e "const fs=require('node:fs'); const fromInput=(process.env.WORKFLOW_INPUT_ENVIRONMENT || '').trim(); const fromVariable=(process.env.REPOSITORY_S3TE_ENVIRONMENT || '').trim(); const config=JSON.parse(fs.readFileSync('s3te.config.json','utf8')); const known=Object.keys(config.environments ?? {}); const requested=(fromInput || fromVariable || (known.length === 1 ? known[0] : '')).trim(); if(!requested){ console.error('Missing S3TE environment. Provide workflow_dispatch input \"environment\" or set GitHub repository variable S3TE_ENVIRONMENT. Known environments: ' + (known.length > 0 ? known.join(', ') : '(none)') + '.'); process.exit(1);} const environmentConfig=config.environments?.[requested]; if(!environmentConfig){ console.error('Unknown environment ' + requested + '. Known environments: ' + (known.length > 0 ? known.join(', ') : '(none)') + '.'); process.exit(1);} fs.appendFileSync(process.env.GITHUB_OUTPUT, 'environment=' + requested + '\n'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'aws_region=' + environmentConfig.awsRegion + '\n');"
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:

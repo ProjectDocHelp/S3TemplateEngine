@@ -991,128 +991,129 @@ export async function doctorProject(projectDir, configPath, options = {}) {
   return checks;
 }
 
-export async function migrateProject(configPath, rawConfig, writeChanges) {
-  const options = typeof writeChanges === "object" && writeChanges !== null
-    ? writeChanges
-    : { writeChanges };
+export async function configureProjectOption(configPath, rawConfig, optionConfiguration) {
+  const options = typeof optionConfiguration === "object" && optionConfiguration !== null
+    ? optionConfiguration
+    : { writeChanges: optionConfiguration };
+  const optionName = String(options.optionName ?? "").trim().toLowerCase();
+  const targetEnvironment = options.environment ? String(options.environment).trim() : "";
   const nextConfig = {
     ...rawConfig,
     configVersion: rawConfig.configVersion ?? 1
   };
   const changes = [];
 
-  const enableWebiny = Boolean(options.enableWebiny);
-  const disableWebiny = Boolean(options.disableWebiny);
-  const enableSitemap = Boolean(options.enableSitemap);
-  const disableSitemap = Boolean(options.disableSitemap);
-  const targetEnvironment = options.environment ? String(options.environment).trim() : "";
-  const webinySourceTable = options.webinySourceTable ? String(options.webinySourceTable).trim() : "";
-  const webinyTenant = options.webinyTenant ? String(options.webinyTenant).trim() : "";
-  const webinyModels = normalizeStringList(options.webinyModels);
-
-  if (enableWebiny && disableWebiny) {
-    throw new S3teError("CONFIG_CONFLICT_ERROR", "migrate does not allow --enable-webiny and --disable-webiny at the same time.");
+  if (!optionName) {
+    throw new S3teError("CONFIG_CONFLICT_ERROR", "option requires an optionName such as webiny or sitemap.");
   }
-  if (enableSitemap && disableSitemap) {
-    throw new S3teError("CONFIG_CONFLICT_ERROR", "migrate does not allow --enable-sitemap and --disable-sitemap at the same time.");
+  if (!["webiny", "sitemap"].includes(optionName)) {
+    throw new S3teError("CONFIG_CONFLICT_ERROR", `Unknown option ${optionName}. Supported options: webiny, sitemap.`);
+  }
+  if (targetEnvironment && !nextConfig.environments?.[targetEnvironment]) {
+    throw new S3teError("CONFIG_CONFLICT_ERROR", `Unknown environment for option ${optionName}: ${targetEnvironment}.`);
   }
 
-  const touchesWebiny = enableWebiny || disableWebiny || Boolean(webinySourceTable) || Boolean(webinyTenant) || webinyModels.length > 0;
-  if (touchesWebiny) {
-    if (targetEnvironment && !nextConfig.environments?.[targetEnvironment]) {
-      throw new S3teError("CONFIG_CONFLICT_ERROR", `Unknown environment for migrate: ${targetEnvironment}.`);
-    }
+  const enable = Boolean(options.enable);
+  const disable = Boolean(options.disable);
+  if (enable && disable) {
+    throw new S3teError("CONFIG_CONFLICT_ERROR", `option ${optionName} does not allow --enable and --disable at the same time.`);
+  }
 
-    const existingIntegrations = nextConfig.integrations ?? {};
-    const existingWebiny = existingIntegrations.webiny ?? {};
-    const existingEnvironmentOverrides = existingWebiny.environments ?? {};
-    const existingTargetWebiny = targetEnvironment
-      ? (existingEnvironmentOverrides[targetEnvironment] ?? {})
-      : existingWebiny;
-    const inheritedModels = normalizeStringList(
-      existingTargetWebiny.relevantModels
-      ?? (targetEnvironment ? existingWebiny.relevantModels : undefined)
-      ?? ["staticContent", "staticCodeContent"]
-    );
-    const shouldEnableWebiny = disableWebiny
-      ? false
-      : (enableWebiny || Boolean(webinySourceTable) || webinyModels.length > 0
-          ? true
-          : Boolean(targetEnvironment
-              ? (existingTargetWebiny.enabled ?? existingWebiny.enabled)
-              : existingWebiny.enabled));
-    const nextSourceTableName = webinySourceTable
-      || existingTargetWebiny.sourceTableName
-      || (targetEnvironment ? existingWebiny.sourceTableName : "")
-      || "";
+  if (optionName === "webiny") {
+    const webinySourceTable = options.sourceTable ? String(options.sourceTable).trim() : "";
+    const webinyTenant = options.tenant ? String(options.tenant).trim() : "";
+    const webinyModels = normalizeStringList(options.models);
+    const touchesWebiny = enable || disable || Boolean(webinySourceTable) || Boolean(webinyTenant) || webinyModels.length > 0;
 
-    if (shouldEnableWebiny && !nextSourceTableName) {
-      throw new S3teError(
-        "CONFIG_CONFLICT_ERROR",
-        targetEnvironment
-          ? `Enabling Webiny for environment ${targetEnvironment} requires --webiny-source-table <table> or an existing sourceTableName.`
-          : "Enabling Webiny requires --webiny-source-table <table> or an existing integrations.webiny.sourceTableName."
+    if (touchesWebiny) {
+      const existingIntegrations = nextConfig.integrations ?? {};
+      const existingWebiny = existingIntegrations.webiny ?? {};
+      const existingEnvironmentOverrides = existingWebiny.environments ?? {};
+      const existingTargetWebiny = targetEnvironment
+        ? (existingEnvironmentOverrides[targetEnvironment] ?? {})
+        : existingWebiny;
+      const inheritedModels = normalizeStringList(
+        existingTargetWebiny.relevantModels
+        ?? (targetEnvironment ? existingWebiny.relevantModels : undefined)
+        ?? ["staticContent", "staticCodeContent"]
       );
-    }
+      const shouldEnableWebiny = disable
+        ? false
+        : (enable || Boolean(webinySourceTable) || webinyModels.length > 0
+            ? true
+            : Boolean(targetEnvironment
+                ? (existingTargetWebiny.enabled ?? existingWebiny.enabled)
+                : existingWebiny.enabled));
+      const nextSourceTableName = webinySourceTable
+        || existingTargetWebiny.sourceTableName
+        || (targetEnvironment ? existingWebiny.sourceTableName : "")
+        || "";
 
-    const nextWebinyConfig = {
-      enabled: shouldEnableWebiny,
-      sourceTableName: nextSourceTableName || undefined,
-      mirrorTableName: existingTargetWebiny.mirrorTableName
-        ?? (targetEnvironment ? existingWebiny.mirrorTableName : undefined)
-        ?? "{stackPrefix}_s3te_content_{project}",
-      tenant: webinyTenant || existingTargetWebiny.tenant || (targetEnvironment ? existingWebiny.tenant : undefined) || undefined,
-      relevantModels: normalizeStringList([
-        ...(inheritedModels.length > 0 ? inheritedModels : ["staticContent", "staticCodeContent"]),
-        ...webinyModels
-      ])
-    };
+      if (shouldEnableWebiny && !nextSourceTableName) {
+        throw new S3teError(
+          "CONFIG_CONFLICT_ERROR",
+          targetEnvironment
+            ? `Enabling Webiny for environment ${targetEnvironment} requires --source-table <table> or an existing sourceTableName.`
+            : "Enabling Webiny requires --source-table <table> or an existing integrations.webiny.sourceTableName."
+        );
+      }
 
-    nextConfig.integrations = {
-      ...existingIntegrations,
-      webiny: targetEnvironment
-        ? {
-            ...existingWebiny,
-            environments: {
-              ...existingEnvironmentOverrides,
-              [targetEnvironment]: nextWebinyConfig
+      const nextWebinyConfig = {
+        enabled: shouldEnableWebiny,
+        sourceTableName: nextSourceTableName || undefined,
+        mirrorTableName: existingTargetWebiny.mirrorTableName
+          ?? (targetEnvironment ? existingWebiny.mirrorTableName : undefined)
+          ?? "{stackPrefix}_s3te_content_{project}",
+        tenant: webinyTenant || existingTargetWebiny.tenant || (targetEnvironment ? existingWebiny.tenant : undefined) || undefined,
+        relevantModels: normalizeStringList([
+          ...(inheritedModels.length > 0 ? inheritedModels : ["staticContent", "staticCodeContent"]),
+          ...webinyModels
+        ])
+      };
+
+      nextConfig.integrations = {
+        ...existingIntegrations,
+        webiny: targetEnvironment
+          ? {
+              ...existingWebiny,
+              environments: {
+                ...existingEnvironmentOverrides,
+                [targetEnvironment]: nextWebinyConfig
+              }
             }
-          }
-        : {
-            ...existingWebiny,
-            ...nextWebinyConfig,
-            environments: existingEnvironmentOverrides
-          }
-    };
+          : {
+              ...existingWebiny,
+              ...nextWebinyConfig,
+              ...(Object.keys(existingEnvironmentOverrides).length > 0
+                ? { environments: existingEnvironmentOverrides }
+                : {})
+            }
+      };
 
-    const scopeLabel = targetEnvironment ? ` for environment ${targetEnvironment}` : "";
-    changes.push(shouldEnableWebiny ? `Enabled Webiny integration${scopeLabel}.` : `Disabled Webiny integration${scopeLabel}.`);
-    if (webinySourceTable) {
-      changes.push(`Set Webiny source table${scopeLabel} to ${webinySourceTable}.`);
-    }
-    if (webinyTenant) {
-      changes.push(`Set Webiny tenant${scopeLabel} to ${webinyTenant}.`);
-    }
-    if (webinyModels.length > 0) {
-      changes.push(`Added Webiny models${scopeLabel}: ${webinyModels.join(", ")}.`);
+      const scopeLabel = targetEnvironment ? ` for environment ${targetEnvironment}` : "";
+      changes.push(shouldEnableWebiny ? `Enabled Webiny option${scopeLabel}.` : `Disabled Webiny option${scopeLabel}.`);
+      if (webinySourceTable) {
+        changes.push(`Set Webiny source table${scopeLabel} to ${webinySourceTable}.`);
+      }
+      if (webinyTenant) {
+        changes.push(`Set Webiny tenant${scopeLabel} to ${webinyTenant}.`);
+      }
+      if (webinyModels.length > 0) {
+        changes.push(`Added Webiny models${scopeLabel}: ${webinyModels.join(", ")}.`);
+      }
     }
   }
 
-  const touchesSitemap = enableSitemap || disableSitemap;
-  if (touchesSitemap) {
-    if (targetEnvironment && !nextConfig.environments?.[targetEnvironment]) {
-      throw new S3teError("CONFIG_CONFLICT_ERROR", `Unknown environment for migrate: ${targetEnvironment}.`);
-    }
-
+  if (optionName === "sitemap") {
     const existingIntegrations = nextConfig.integrations ?? {};
     const existingSitemap = existingIntegrations.sitemap ?? {};
     const existingEnvironmentOverrides = existingSitemap.environments ?? {};
     const existingTargetSitemap = targetEnvironment
       ? (existingEnvironmentOverrides[targetEnvironment] ?? {})
       : existingSitemap;
-    const nextEnabled = disableSitemap
+    const nextEnabled = disable
       ? false
-      : (enableSitemap || Boolean(targetEnvironment
+      : (enable || Boolean(targetEnvironment
           ? (existingTargetSitemap.enabled ?? existingSitemap.enabled)
           : existingSitemap.enabled));
 
@@ -1132,12 +1133,14 @@ export async function migrateProject(configPath, rawConfig, writeChanges) {
         : {
             ...existingSitemap,
             enabled: nextEnabled,
-            environments: existingEnvironmentOverrides
+            ...(Object.keys(existingEnvironmentOverrides).length > 0
+              ? { environments: existingEnvironmentOverrides }
+              : {})
           }
     };
 
     const scopeLabel = targetEnvironment ? ` for environment ${targetEnvironment}` : "";
-    changes.push(nextEnabled ? `Enabled sitemap integration${scopeLabel}.` : `Disabled sitemap integration${scopeLabel}.`);
+    changes.push(nextEnabled ? `Enabled sitemap option${scopeLabel}.` : `Disabled sitemap option${scopeLabel}.`);
   }
 
   if (options.writeChanges) {

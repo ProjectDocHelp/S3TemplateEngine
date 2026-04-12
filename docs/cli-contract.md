@@ -344,20 +344,19 @@ Prueft mindestens:
 5. bei `--env <name>` die AWS-Credentials fuer die gewaehlte Umgebung
 6. bei `--env <name>` die ACM-Zertifikatsabdeckung fuer die aus `baseUrl` und `cloudFrontAliases` abgeleiteten Aliase
 
-## `s3te migrate`
+## `s3te option <name>`
 
 Zweck:
 
-- aeltere Projektdateien auf den aktuellen S3TE-Stand bringen
+- optionale Zusatzteile wie `sitemap` oder Webiny in die Projektkonfiguration schreiben oder dort aktualisieren
 
 Aufruf:
 
 ```bash
-s3te migrate
-s3te migrate --enable-sitemap --write
-s3te migrate --env test --enable-sitemap --write
-s3te migrate --enable-webiny --webiny-source-table webiny-1234567 --webiny-tenant root --write
-s3te migrate --env test --enable-webiny --webiny-source-table webiny-test-1234567 --write
+s3te option sitemap --enable --write
+s3te option sitemap --env test --enable --write
+s3te option webiny --enable --source-table webiny-1234567 --tenant root --write
+s3te option webiny --env test --enable --source-table webiny-test-1234567 --write
 ```
 
 Optionen:
@@ -365,20 +364,22 @@ Optionen:
 - `--dry-run`
 - `--write`
 - `--env <name>`
-- `--enable-sitemap`
-- `--disable-sitemap`
-- `--enable-webiny`
-- `--disable-webiny`
-- `--webiny-source-table <table>`
-- `--webiny-tenant <tenant>`
-- `--webiny-model <model>` mehrfach erlaubt
+- `webiny`:
+  - `--enable`
+  - `--disable`
+  - `--source-table <table>`
+  - `--tenant <tenant>`
+  - `--model <model>` mehrfach erlaubt
+- `sitemap`:
+  - `--enable`
+  - `--disable`
 
 Pflichtverhalten:
 
 1. setzt fehlende `configVersion` auf den aktuellen V1-Wert
 2. kann optionale Retrofit-Aenderungen wie das nachtraegliche Aktivieren von Sitemap oder Webiny global oder fuer ein einzelnes Environment in die Projektkonfiguration schreiben
 3. schreibt nie ungefragt in Projektdateien ohne `--write`
-4. gibt nachvollziehbare Migrationshinweise aus
+4. gibt nachvollziehbare Aenderungshinweise aus
 
 ## JSON-Report-Regeln
 

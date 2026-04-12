@@ -70,6 +70,17 @@ function lambdaRuntimeProperties(runtimeConfig, roleRef, name, keyParameter, han
   };
 }
 
+function buildFunctionNames(runtimeConfig) {
+  return {
+    sourceDispatcher: `${runtimeConfig.stackPrefix}_s3te_source_dispatcher`,
+    renderWorker: `${runtimeConfig.stackPrefix}_s3te_render_worker`,
+    invalidationScheduler: `${runtimeConfig.stackPrefix}_s3te_invalidation_scheduler`,
+    invalidationExecutor: `${runtimeConfig.stackPrefix}_s3te_invalidation_executor`,
+    contentMirror: `${runtimeConfig.stackPrefix}_s3te_content_mirror`,
+    sitemapUpdater: `${runtimeConfig.stackPrefix}_s3te_sitemap_updater`
+  };
+}
+
 function createExecutionRole(roleName) {
   return {
     Type: "AWS::IAM::Role",
@@ -132,14 +143,7 @@ export function buildCloudFormationTemplate({ config, environment, features = []
   const outputs = {};
   const featureSet = new Set(features);
 
-  const functionNames = {
-    sourceDispatcher: `${runtimeConfig.stackPrefix}_s3te_source_dispatcher`,
-    renderWorker: `${runtimeConfig.stackPrefix}_s3te_render_worker`,
-    invalidationScheduler: `${runtimeConfig.stackPrefix}_s3te_invalidation_scheduler`,
-    invalidationExecutor: `${runtimeConfig.stackPrefix}_s3te_invalidation_executor`,
-    contentMirror: `${runtimeConfig.stackPrefix}_s3te_content_mirror`,
-    sitemapUpdater: `${runtimeConfig.stackPrefix}_s3te_sitemap_updater`
-  };
+  const functionNames = buildFunctionNames(runtimeConfig);
 
   const parameters = {
     ArtifactBucket: {
@@ -157,10 +161,6 @@ export function buildCloudFormationTemplate({ config, environment, features = []
     InvalidationExecutorArtifactKey: {
       Type: "String"
     },
-    ContentMirrorArtifactKey: {
-      Type: "String",
-      Default: ""
-    },
     SitemapUpdaterArtifactKey: {
       Type: "String",
       Default: ""
@@ -168,10 +168,6 @@ export function buildCloudFormationTemplate({ config, environment, features = []
     RuntimeManifestValue: {
       Type: "String",
       Default: "{}"
-    },
-    WebinySourceTableStreamArn: {
-      Type: "String",
-      Default: ""
     }
   };
 
@@ -361,39 +357,6 @@ export function buildCloudFormationTemplate({ config, environment, features = []
     }
   );
 
-  if (featureSet.has("webiny") && runtimeConfig.integrations.webiny.enabled) {
-    resources.ContentMirror = lambdaRuntimeProperties(
-      runtimeConfig,
-      "ExecutionRole",
-      functionNames.contentMirror,
-      "ContentMirrorArtifactKey",
-      "content-mirror",
-      {
-        Timeout: 300,
-        MemorySize: 512,
-        Environment: {
-          Variables: {
-            S3TE_ENVIRONMENT: environment,
-            S3TE_CONTENT_TABLE: runtimeConfig.tables.content,
-            S3TE_RELEVANT_MODELS: runtimeConfig.integrations.webiny.relevantModels.join(","),
-            S3TE_WEBINY_TENANT: runtimeConfig.integrations.webiny.tenant ?? "",
-            S3TE_RENDER_WORKER_NAME: functionNames.renderWorker
-          }
-        }
-      }
-    );
-
-    resources.ContentMirrorEventSourceMapping = {
-      Type: "AWS::Lambda::EventSourceMapping",
-      Properties: {
-        BatchSize: 10,
-        StartingPosition: "LATEST",
-        EventSourceArn: { Ref: "WebinySourceTableStreamArn" },
-        FunctionName: { Ref: "ContentMirror" }
-      }
-    };
-  }
-
   if (featureSet.has("sitemap") && runtimeConfig.integrations.sitemap.enabled) {
     resources.SitemapUpdater = lambdaRuntimeProperties(
       runtimeConfig,
@@ -426,9 +389,6 @@ export function buildCloudFormationTemplate({ config, environment, features = []
   outputs.InvalidationSchedulerFunctionName = { Value: functionNames.invalidationScheduler };
   outputs.InvalidationExecutorFunctionName = { Value: functionNames.invalidationExecutor };
 
-  if (resources.ContentMirror) {
-    outputs.ContentMirrorFunctionName = { Value: functionNames.contentMirror };
-  }
   if (resources.SitemapUpdater) {
     outputs.SitemapUpdaterFunctionName = { Value: functionNames.sitemapUpdater };
   }
@@ -617,6 +577,64 @@ export function buildCloudFormationTemplate({ config, environment, features = []
     Parameters: parameters,
     Resources: resources,
     Outputs: outputs
+  };
+}
+
+export function buildWebinyCloudFormationTemplate({ config, environment }) {
+  const runtimeConfig = buildEnvironmentRuntimeConfig(config, environment);
+  const functionNames = buildFunctionNames(runtimeConfig);
+
+  return {
+    AWSTemplateFormatVersion: "2010-09-09",
+    Description: `S3TE Webiny option stack for ${config.project.name} (${environment})`,
+    Parameters: {
+      ArtifactBucket: {
+        Type: "String"
+      },
+      ContentMirrorArtifactKey: {
+        Type: "String"
+      },
+      WebinySourceTableStreamArn: {
+        Type: "String"
+      }
+    },
+    Resources: {
+      ExecutionRole: createExecutionRole(`${runtimeConfig.stackPrefix}_s3te_webiny_lambda_runtime`),
+      ContentMirror: lambdaRuntimeProperties(
+        runtimeConfig,
+        "ExecutionRole",
+        functionNames.contentMirror,
+        "ContentMirrorArtifactKey",
+        "content-mirror",
+        {
+          Timeout: 300,
+          MemorySize: 512,
+          Environment: {
+            Variables: {
+              S3TE_ENVIRONMENT: environment,
+              S3TE_CONTENT_TABLE: runtimeConfig.tables.content,
+              S3TE_RELEVANT_MODELS: runtimeConfig.integrations.webiny.relevantModels.join(","),
+              S3TE_WEBINY_TENANT: runtimeConfig.integrations.webiny.tenant ?? "",
+              S3TE_RENDER_WORKER_NAME: functionNames.renderWorker
+            }
+          }
+        }
+      ),
+      ContentMirrorEventSourceMapping: {
+        Type: "AWS::Lambda::EventSourceMapping",
+        Properties: {
+          BatchSize: 10,
+          StartingPosition: "LATEST",
+          EventSourceArn: { Ref: "WebinySourceTableStreamArn" },
+          FunctionName: { Ref: "ContentMirror" }
+        }
+      }
+    },
+    Outputs: {
+      ContentMirrorFunctionName: {
+        Value: functionNames.contentMirror
+      }
+    }
   };
 }
 

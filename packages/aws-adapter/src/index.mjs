@@ -1,5 +1,5 @@
 export { writeZipArchive } from "./zip.mjs";
-export { buildCloudFormationTemplate, buildTemporaryDeployStackTemplate } from "./template.mjs";
+export { buildCloudFormationTemplate, buildTemporaryDeployStackTemplate, buildWebinyCloudFormationTemplate } from "./template.mjs";
 export { buildAwsRuntimeManifest, extractStackOutputsMap } from "./manifest.mjs";
 export { ensureAwsCliAvailable, ensureAwsCredentials, runAwsCli } from "./aws-cli.mjs";
 export { getConfiguredFeatures, resolveRequestedFeatures } from "./features.mjs";

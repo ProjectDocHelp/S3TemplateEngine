@@ -11,7 +11,7 @@ import {
 
 import { buildAwsRuntimeManifest } from "./manifest.mjs";
 import { resolveRequestedFeatures } from "./features.mjs";
-import { buildCloudFormationTemplate } from "./template.mjs";
+import { buildCloudFormationTemplate, buildWebinyCloudFormationTemplate } from "./template.mjs";
 import { writeZipArchive } from "./zip.mjs";
 
 const ZIP_DATE = new Date("2020-01-01T00:00:00.000Z");
@@ -242,6 +242,7 @@ export async function packageAwsProject({
 
   const lambdaDir = path.join(packageDir, "lambda");
   const templatePath = path.join(packageDir, "cloudformation.template.json");
+  const webinyTemplatePath = path.join(packageDir, "cloudformation.webiny.template.json");
   const packagingManifestPath = path.join(packageDir, "manifest.json");
   const runtimeManifestSeedPath = path.join(packageDir, "runtime-manifest.base.json");
   const lambdaEntries = await collectLambdaArchiveEntries();
@@ -292,6 +293,9 @@ export async function packageAwsProject({
   const runtimeManifestSeed = buildAwsRuntimeManifest({ config, environment });
 
   await writeJsonFile(templatePath, template);
+  if (resolvedFeatures.includes("webiny") && runtimeConfig.integrations.webiny.enabled) {
+    await writeJsonFile(webinyTemplatePath, buildWebinyCloudFormationTemplate({ config, environment }));
+  }
   await writeJsonFile(runtimeManifestSeedPath, runtimeManifestSeed);
 
   const manifest = {
@@ -302,6 +306,9 @@ export async function packageAwsProject({
     runtimeParameterName: runtimeConfig.runtimeParameterName,
     packageDir: normalizeRelative(projectDir, packageDir),
     cloudFormationTemplate: normalizeRelative(projectDir, templatePath),
+    ...(resolvedFeatures.includes("webiny") && runtimeConfig.integrations.webiny.enabled
+      ? { webinyCloudFormationTemplate: normalizeRelative(projectDir, webinyTemplatePath) }
+      : {}),
     runtimeManifestSeed: normalizeRelative(projectDir, runtimeManifestSeedPath),
     lambdaArtifacts: Object.fromEntries(Object.entries(lambdaArtifacts).map(([name, artifact]) => [
       name,

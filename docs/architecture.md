@@ -166,7 +166,7 @@ Aktuell im Repository umgesetzt:
 
 - `core` Modul mit Render-Pipeline und Konfigurationsaufloesung
 - `testkit` Modul mit In-Memory-Repositories, Dependency Store sowie sammelnden Publisher-/Scheduler-Testadaptern
-- `cli` Modul mit `init`, `validate`, `render`, `test`, `package`, `sync`, `deploy`, `doctor` und `migrate`
+- `cli` Modul mit `init`, `validate`, `render`, `test`, `package`, `sync`, `deploy`, `doctor` und `option`
 - `aws-adapter` Modul mit Packaging, Deploy, Source-Sync, Runtime-Manifest, Invalidation sowie optionalem Sitemap- und Webiny-Runtime-Pfad
 
 ## Dokumentenlandkarte

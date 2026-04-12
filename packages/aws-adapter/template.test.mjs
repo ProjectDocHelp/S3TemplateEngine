@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildCloudFormationTemplate, buildTemporaryDeployStackTemplate } from "./src/index.mjs";
+import { buildCloudFormationTemplate, buildTemporaryDeployStackTemplate, buildWebinyCloudFormationTemplate } from "./src/index.mjs";
 
 function createConfig() {
   return {
@@ -65,7 +65,7 @@ function createConfig() {
   };
 }
 
-test("cloudformation template exposes parameterized lambda artifacts and runtime outputs", () => {
+test("environment cloudformation template exposes parameterized lambda artifacts and runtime outputs without webiny resources", () => {
   const template = buildCloudFormationTemplate({
     config: createConfig(),
     environment: "dev",
@@ -78,8 +78,29 @@ test("cloudformation template exposes parameterized lambda artifacts and runtime
   assert.equal(template.Resources.RenderWorker.Properties.Environment.Variables.S3TE_DEPENDENCY_TABLE, "DEV_s3te_dependencies_mysite");
   assert.deepEqual(template.Resources.RuntimeManifestParameter.Properties.Value, { Ref: "RuntimeManifestValue" });
   assert.equal(template.Outputs.RuntimeManifestParameterName.Value, "/DEV/s3te/mysite/runtime-manifest");
+  assert.equal(template.Parameters.ContentMirrorArtifactKey, undefined);
+  assert.equal(template.Parameters.WebinySourceTableStreamArn, undefined);
+  assert.equal(template.Resources.ContentMirror, undefined);
+  assert.equal(template.Resources.ContentMirrorEventSourceMapping, undefined);
+});
+
+test("webiny option cloudformation template contains only webiny mirror resources", () => {
+  const template = buildWebinyCloudFormationTemplate({
+    config: createConfig(),
+    environment: "dev"
+  });
+
+  assert.equal(template.Parameters.ArtifactBucket.Type, "String");
+  assert.equal(template.Parameters.ContentMirrorArtifactKey.Type, "String");
+  assert.equal(template.Parameters.WebinySourceTableStreamArn.Type, "String");
   assert.ok(template.Resources.ContentMirror);
   assert.ok(template.Resources.ContentMirrorEventSourceMapping);
+  assert.equal(template.Resources.ContentMirror.Properties.Handler, "packages/aws-adapter/src/runtime/content-mirror.handler");
+  assert.equal(template.Resources.ContentMirror.Properties.Environment.Variables.S3TE_CONTENT_TABLE, "DEV_s3te_content_mysite");
+  assert.equal(template.Resources.ContentMirror.Properties.Environment.Variables.S3TE_RENDER_WORKER_NAME, "DEV_s3te_render_worker");
+  assert.equal(template.Resources.ContentMirrorEventSourceMapping.Properties.EventSourceArn.Ref, "WebinySourceTableStreamArn");
+  assert.equal(template.Resources.websiteenDistribution, undefined);
+  assert.deepEqual(template.Outputs.ContentMirrorFunctionName.Value, "DEV_s3te_content_mirror");
 });
 
 test("cloudformation template derives non-prod aliases and bucket names from the environment name", () => {

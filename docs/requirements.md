@@ -116,7 +116,7 @@ Die CLI stellt mindestens diese Kommandos bereit:
 - `s3te sync`
 - `s3te deploy`
 - `s3te doctor`
-- `s3te migrate`
+- `s3te option <name>`
 
 Weitere CLI-Anforderungen:
 
@@ -124,7 +124,7 @@ Weitere CLI-Anforderungen:
 - Das ausfuehrbare Binary heisst `s3te`.
 - Die CLI muss sowohl lokal als Projekt-Dependency als auch global installierbar sein.
 - `s3te init` erzeugt eine lauffaehige Projektstruktur mit `s3te.config.json`, Template-Ordnern und optionalen VSCode-Empfehlungen.
-- `s3te migrate` darf optionale Retrofit-Konfigurationen wie `sitemap` oder Webiny in bestehende Projekte schreiben.
+- `s3te option <name>` darf optionale Retrofit-Konfigurationen wie `sitemap` oder Webiny in bestehende Projekte schreiben.
 
 ## Nicht-funktionale Anforderungen
 

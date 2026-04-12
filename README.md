@@ -66,7 +66,7 @@ That source sync is not limited to Lambda code. It includes your `.html`, `.part
 
 The persistent environment stack contains the long-lived AWS resources such as buckets, Lambda functions, DynamoDB tables, CloudFront distributions and the runtime manifest parameter. The temporary deploy stack exists only so CloudFormation can consume the packaged Lambda artifacts cleanly.
 
-If optional runtime features such as `sitemap` or Webiny are enabled in `s3te.config.json`, the same environment stack also carries those extra Lambdas and event bindings.
+If optional runtime features are enabled in `s3te.config.json`, S3TE extends the deployed AWS runtime accordingly. `sitemap` is added to the main environment stack. Webiny is deployed as a separate option stack so retrofitting CMS support does not require CloudFront resources to move with it.
 
 </details>
 
@@ -484,7 +484,7 @@ Once Webiny is installed and the stack is deployed with Webiny enabled, CMS cont
 | `s3te sync --env <name>` | Uploads current project sources into the configured code buckets. |
 | `s3te doctor --env <name>` | Checks local machine and AWS access before deploy. |
 | `s3te deploy --env <name>` | Deploys or updates the AWS environment and syncs source files. |
-| `s3te migrate` | Updates older project configs and can retrofit optional features such as `sitemap` or Webiny into an existing S3TE project. |
+| `s3te option <webiny|sitemap>` | Writes or updates optional feature configuration such as Webiny or sitemap support in an existing S3TE project. |
 
 </details>
 
@@ -929,11 +929,11 @@ Add this block to `s3te.config.json`:
 
 The top-level `enabled` acts as the default. `integrations.sitemap.environments.<env>.enabled` can override that for a single environment.
 
-If you prefer the CLI path, this does the same retrofit:
+If you prefer the CLI path, this does the same option update:
 
 ```bash
-npx s3te migrate --enable-sitemap --write
-npx s3te migrate --env test --enable-sitemap --write
+npx s3te option sitemap --enable --write
+npx s3te option sitemap --env test --enable --write
 ```
 
 After enabling or disabling `sitemap`, redeploy the affected environment once:
@@ -989,23 +989,23 @@ This section assumes that S3TE is already installed and deployed. The S3TE-speci
 3. Manually enable DynamoDB Streams on that Webiny table before the first S3TE deploy with Webiny enabled.
    Use `NEW_AND_OLD_IMAGES`.
    Without that stream, `s3te deploy --env <name>` cannot wire the Webiny trigger and fails because the table has no `LatestStreamArn`.
-4. Upgrade your existing S3TE config for Webiny:
+4. Write the Webiny option into your existing S3TE config:
 
 ```bash
-npx s3te migrate --enable-webiny --webiny-source-table webiny-1234567 --webiny-tenant root --webiny-model article --write
+npx s3te option webiny --enable --source-table webiny-1234567 --tenant root --model article --write
 ```
 
-`staticContent` and `staticCodeContent` are kept automatically. Add `--webiny-model` once per custom model you want S3TE to mirror.
+`staticContent` and `staticCodeContent` are kept automatically. Add `--model` once per custom model you want S3TE to mirror.
 
-`--webiny-model article` means:
+`--model article` means:
 
 - `article` is the technical Webiny model ID, not the human-readable label shown in the CMS UI.
 - S3TE adds that model ID to `integrations.webiny.relevantModels` in `s3te.config.json`.
 - Only Webiny stream records whose model is listed in `relevantModels` are mirrored into the S3TE content table and can trigger rerendering.
-- If you omit `--webiny-model`, only the built-in defaults `staticContent` and `staticCodeContent` are mirrored.
-- You can pass the flag multiple times for multiple models, for example `--webiny-model article --webiny-model news --webiny-model event`.
+- If you omit `--model`, only the built-in defaults `staticContent` and `staticCodeContent` are mirrored.
+- You can pass the flag multiple times for multiple models, for example `--model article --model news --model event`.
 
-That makes the migration example above equivalent to a config that contains:
+That makes the option example above equivalent to a config that contains:
 
 ```json
 "relevantModels": ["article", "staticContent", "staticCodeContent"]
@@ -1013,11 +1013,11 @@ That makes the migration example above equivalent to a config that contains:
 
 Use this for every Webiny model whose entries should be available to S3TE template commands like `dbitem`, `dbmulti`, `dbmultifile`, `dbmultifileitem`, or `dbpart`.
 
-If different environments should read from different Webiny installations or tenants, run the migration per environment:
+If different environments should read from different Webiny installations or tenants, run the option command per environment:
 
 ```bash
-npx s3te migrate --env test --enable-webiny --webiny-source-table webiny-test-1234567 --webiny-tenant preview --write
-npx s3te migrate --env prod --enable-webiny --webiny-source-table webiny-live-1234567 --webiny-tenant root --write
+npx s3te option webiny --env test --enable --source-table webiny-test-1234567 --tenant preview --write
+npx s3te option webiny --env prod --enable --source-table webiny-live-1234567 --tenant root --write
 ```
 
 5. Verify again that DynamoDB Streams are enabled on the Webiny source table with `NEW_AND_OLD_IMAGES`.
@@ -1037,19 +1037,19 @@ npx s3te doctor --env prod
 npx s3te deploy --env prod
 ```
 
-That deploy updates the existing environment stack and adds the Webiny mirror resources to it. You do not need a fresh S3TE installation. After that, Webiny content changes flow through the deployed AWS resources automatically; only template or asset changes still need `s3te sync --env <name>`.
+That deploy updates the existing environment stack and, when Webiny is enabled, also deploys the separate Webiny option stack for `content-mirror` and its DynamoDB stream mapping. You do not need a fresh S3TE installation. After that, Webiny content changes flow through the deployed AWS resources automatically; only template or asset changes still need `s3te sync --env <name>`.
 
 Manual versus automatic responsibilities in this step:
 
 - Manual: enable DynamoDB Streams on the Webiny source table
-- Automatic during `s3te deploy`: read `LatestStreamArn`, create the Lambda event source mapping, and wire the S3TE Webiny mirror Lambda into the environment stack
+- Automatic during `s3te deploy`: read `LatestStreamArn`, create the Lambda event source mapping, and deploy the S3TE Webiny mirror Lambda in the separate Webiny option stack
 
 </details>
 
 <details>
-  <summary>What the migration command changes</summary>
+  <summary>What the option command changes</summary>
 
-The migration command writes or updates the `integrations.webiny` block in `s3te.config.json`. A typical result looks like this:
+The option command writes or updates the `integrations.webiny` block in `s3te.config.json`. A typical result looks like this:
 
 Example config block:
 

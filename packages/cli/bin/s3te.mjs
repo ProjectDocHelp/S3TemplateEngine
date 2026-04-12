@@ -3,10 +3,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import {
+  configureProjectOption,
   deployProject,
   doctorProject,
   loadResolvedConfig,
-  migrateProject,
   packageProject,
   renderProject,
   runProjectTests,
@@ -86,7 +86,7 @@ function printHelp() {
     "  sync\n" +
     "  deploy\n" +
     "  doctor\n" +
-    "  migrate\n"
+    "  option <webiny|sitemap>\n"
   );
 }
 
@@ -377,30 +377,39 @@ async function main() {
     return;
   }
 
-  if (command === "migrate") {
+  if (command === "option") {
+    const optionName = String(options._[0] ?? "").trim().toLowerCase();
+    if (!optionName) {
+      process.stderr.write("option requires a name such as webiny or sitemap\n");
+      process.exitCode = 1;
+      return;
+    }
     const configPath = path.resolve(cwd, options.config ?? "s3te.config.json");
     const rawConfig = JSON.parse(await fs.readFile(configPath, "utf8"));
-    const migration = await migrateProject(configPath, rawConfig, {
+    const optionResult = await configureProjectOption(configPath, rawConfig, {
+      optionName,
       writeChanges: Boolean(options.write) && !Boolean(options["dry-run"]),
       environment: asArray(options.env)[0],
-      enableWebiny: Boolean(options["enable-webiny"]),
-      disableWebiny: Boolean(options["disable-webiny"]),
-      enableSitemap: Boolean(options["enable-sitemap"]),
-      disableSitemap: Boolean(options["disable-sitemap"]),
-      webinySourceTable: options["webiny-source-table"],
-      webinyTenant: options["webiny-tenant"],
-      webinyModels: asArray(options["webiny-model"])
+      enable: Boolean(options.enable),
+      disable: Boolean(options.disable),
+      sourceTable: options["source-table"],
+      tenant: options.tenant,
+      models: asArray(options.model)
     });
     if (wantsJson) {
-      printJson("migrate", true, [], [], startedAt, {
-        configVersion: migration.config.configVersion,
+      printJson(`option ${optionName}`, true, [], [], startedAt, {
+        configVersion: optionResult.config.configVersion,
         wrote: Boolean(options.write) && !Boolean(options["dry-run"]),
-        changes: migration.changes
+        changes: optionResult.changes
       });
       return;
     }
-    process.stdout.write(options.write ? `Migrated ${configPath}\n` : `Migration preview for ${configPath}: configVersion=${migration.config.configVersion}\n`);
-    for (const change of migration.changes) {
+    process.stdout.write(
+      options.write
+        ? `Updated option ${optionName} in ${configPath}\n`
+        : `Option preview for ${optionName} in ${configPath}: configVersion=${optionResult.config.configVersion}\n`
+    );
+    for (const change of optionResult.changes) {
       process.stdout.write(`- ${change}\n`);
     }
     return;

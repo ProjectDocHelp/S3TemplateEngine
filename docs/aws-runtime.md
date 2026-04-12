@@ -39,6 +39,7 @@ Das ist eine bewusste Vereinfachung gegenueber dem Legacy-Repo, das Basis-, Spra
 flowchart LR
   CLI[s3te deploy] --> TCF[Temporary Packaging Stack]
   CLI --> ECF[Environment Stack]
+  CLI --> WOF[Webiny Option Stack optional]
   TCF --> AB[Artifact Bucket]
   ECF --> CB[Code Buckets]
   ECF --> OB[Output Buckets]
@@ -47,7 +48,6 @@ flowchart LR
   ECF --> L3[invalidation-scheduler]
   ECF --> L4[invalidation-executor]
   ECF --> L5[sitemap-updater optional]
-  ECF --> L6[content-mirror optional]
   ECF --> D1[dependency table]
   ECF --> D2[content table]
   ECF --> D3[invalidation table]
@@ -55,6 +55,7 @@ flowchart LR
   ECF --> SSM[Runtime Manifest Parameter]
   ECF --> CDN[CloudFront distributions]
   ECF --> DNS[Route53 aliases optional]
+  WOF --> L6[content-mirror optional]
 ```
 
 ## Ressourcen pro Umgebung
@@ -71,7 +72,7 @@ flowchart LR
 - `invalidation-scheduler`
 - `invalidation-executor`
 - optional `sitemap-updater`
-- optional `content-mirror`
+- optional `content-mirror` in einem separaten Webiny-Options-Stack
 
 ### DynamoDB
 
@@ -106,7 +107,7 @@ Ausgangslage:
 Beim spaeteren Aktivieren von `integrations.webiny.enabled = true` und einem erneuten `deploy`:
 
 1. bleibt der bestehende Environment-Stack erhalten
-2. werden `content-mirror` und `ContentMirrorEventSourceMapping` in denselben Stack aufgenommen
+2. wird ein zusaetzlicher Webiny-Options-Stack fuer `content-mirror` und `ContentMirrorEventSourceMapping` deployed
 3. bleibt der interne Content Store derselbe
 4. muessen keine Buckets, Distributionen oder Tabellen neu benannt werden
 
@@ -466,6 +467,7 @@ Die Referenzimplementierung soll Least Privilege verwenden. Die folgenden Berech
 ### `deploy`-Pfad der CLI
 
 - `cloudformation:*` auf den Environment-Stack
+- `cloudformation:*` auf den Webiny-Options-Stack, falls Webiny aktiviert ist
 - `cloudformation:*` auf den temporaeren Deploy-Stack
 - `iam:PassRole` fuer die erzeugten Lambda-Rollen
 - `s3:*` auf die von S3TE verwalteten Buckets
@@ -480,6 +482,7 @@ Aktiviert:
 
 - `content-mirror`
 - Event Source Mapping auf den Quell-Stream
+- separaten Webiny-Options-Stack fuer diese Ressourcen
 
 ### `sitemap`
 

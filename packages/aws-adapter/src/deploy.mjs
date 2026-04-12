@@ -3,6 +3,7 @@ import path from "node:path";
 
 import {
   buildEnvironmentRuntimeConfig,
+  resolveOptionStackName,
   resolveStackName,
   S3teError
 } from "../../core/src/index.mjs";
@@ -34,6 +35,15 @@ function temporaryStackName(stackName) {
   return `${stackName}-deploy-temp`;
 }
 
+function stackDoesNotExist(error) {
+  const detailsText = [
+    error?.message,
+    error?.details?.stderr,
+    error?.details?.stdout
+  ].filter(Boolean).join("\n");
+  return /does not exist/i.test(detailsText) || /Stack with id .* does not exist/i.test(detailsText);
+}
+
 async function uploadArtifact({ bucketName, key, bodyPath, region, profile, cwd }) {
   await runAwsCli(["s3api", "put-object", "--bucket", bucketName, "--key", key, "--body", bodyPath], {
     region,
@@ -51,6 +61,18 @@ async function describeStack({ stackName, region, profile, cwd }) {
     errorCode: "ADAPTER_ERROR"
   });
   return JSON.parse(describedStack.stdout).Stacks?.[0];
+}
+
+async function stackExists({ stackName, region, profile, cwd }) {
+  try {
+    await describeStack({ stackName, region, profile, cwd });
+    return true;
+  } catch (error) {
+    if (stackDoesNotExist(error)) {
+      return false;
+    }
+    throw error;
+  }
 }
 
 async function describeStackEvents({ stackName, region, profile, cwd }) {
@@ -331,11 +353,37 @@ async function cleanupTemporaryArtifactsStack({
   });
 }
 
+async function deleteCloudFormationStackIfExists({
+  stackName,
+  region,
+  profile,
+  cwd
+}) {
+  if (!(await stackExists({ stackName, region, profile, cwd }))) {
+    return false;
+  }
+
+  await runAwsCli(["cloudformation", "delete-stack", "--stack-name", stackName], {
+    region,
+    profile,
+    cwd,
+    errorCode: "ADAPTER_ERROR"
+  });
+
+  await runAwsCli(["cloudformation", "wait", "stack-delete-complete", "--stack-name", stackName], {
+    region,
+    profile,
+    cwd,
+    errorCode: "ADAPTER_ERROR"
+  });
+
+  return true;
+}
+
 function buildEnvironmentStackParameters({
   artifactBucket,
   uploadedArtifacts,
-  runtimeManifestValue,
-  webinyStreamArn = ""
+  runtimeManifestValue
 }) {
   return [
     `ArtifactBucket=${artifactBucket}`,
@@ -343,9 +391,19 @@ function buildEnvironmentStackParameters({
     `RenderWorkerArtifactKey=${uploadedArtifacts.renderWorker}`,
     `InvalidationSchedulerArtifactKey=${uploadedArtifacts.invalidationScheduler}`,
     `InvalidationExecutorArtifactKey=${uploadedArtifacts.invalidationExecutor}`,
-    `ContentMirrorArtifactKey=${uploadedArtifacts.contentMirror}`,
     `SitemapUpdaterArtifactKey=${uploadedArtifacts.sitemapUpdater}`,
-    `RuntimeManifestValue=${runtimeManifestValue}`,
+    `RuntimeManifestValue=${runtimeManifestValue}`
+  ];
+}
+
+function buildWebinyStackParameters({
+  artifactBucket,
+  uploadedArtifacts,
+  webinyStreamArn
+}) {
+  return [
+    `ArtifactBucket=${artifactBucket}`,
+    `ContentMirrorArtifactKey=${uploadedArtifacts.contentMirror}`,
     `WebinySourceTableStreamArn=${webinyStreamArn}`
   ];
 }
@@ -365,6 +423,7 @@ export async function deployAwsProject({
   const requestedFeatureSet = new Set(features);
   const featureSet = new Set(resolveRequestedFeatures(config, features, environment));
   const stackName = resolveStackName(config, environment);
+  const webinyStackName = resolveOptionStackName(config, environment, "webiny");
   const tempStackName = temporaryStackName(stackName);
   const runtimeManifestPath = path.join(projectDir, packageDir ?? path.join("offline", "IAAS", "package", environment), "runtime-manifest.json");
 
@@ -439,16 +498,36 @@ export async function deployAwsProject({
       parameterOverrides: buildEnvironmentStackParameters({
         artifactBucket: tempStack.artifactBucket,
         uploadedArtifacts,
-        runtimeManifestValue: "{}",
-        webinyStreamArn
+        runtimeManifestValue: "{}"
       }),
       noExecute: plan,
       stdio
     });
 
     if (plan) {
+      if (featureSet.has("webiny")) {
+        if (!packaged.manifest.webinyCloudFormationTemplate) {
+          throw new S3teError("ADAPTER_ERROR", "Package manifest is missing the Webiny option template.");
+        }
+        await deployCloudFormationStack({
+          stackName: webinyStackName,
+          templatePath: path.join(projectDir, packaged.manifest.webinyCloudFormationTemplate),
+          region: runtimeConfig.awsRegion,
+          profile,
+          cwd: projectDir,
+          capabilities: ["CAPABILITY_NAMED_IAM"],
+          parameterOverrides: buildWebinyStackParameters({
+            artifactBucket: tempStack.artifactBucket,
+            uploadedArtifacts,
+            webinyStreamArn
+          }),
+          noExecute: true,
+          stdio
+        });
+      }
       return {
         stackName,
+        optionalStacks: featureSet.has("webiny") ? [webinyStackName] : [],
         packageDir: packaged.manifest.packageDir,
         runtimeManifestPath: normalizeRelative(projectDir, runtimeManifestPath),
         syncedCodeBuckets: [],
@@ -482,11 +561,40 @@ export async function deployAwsProject({
       parameterOverrides: buildEnvironmentStackParameters({
         artifactBucket: tempStack.artifactBucket,
         uploadedArtifacts,
-        runtimeManifestValue: JSON.stringify(runtimeManifest),
-        webinyStreamArn
+        runtimeManifestValue: JSON.stringify(runtimeManifest)
       }),
       stdio
     });
+
+    let deployedOptionalStacks = [];
+    let removedOptionalStacks = [];
+    if (featureSet.has("webiny")) {
+      if (!packaged.manifest.webinyCloudFormationTemplate) {
+        throw new S3teError("ADAPTER_ERROR", "Package manifest is missing the Webiny option template.");
+      }
+      await deployCloudFormationStack({
+        stackName: webinyStackName,
+        templatePath: path.join(projectDir, packaged.manifest.webinyCloudFormationTemplate),
+        region: runtimeConfig.awsRegion,
+        profile,
+        cwd: projectDir,
+        capabilities: ["CAPABILITY_NAMED_IAM"],
+        parameterOverrides: buildWebinyStackParameters({
+          artifactBucket: tempStack.artifactBucket,
+          uploadedArtifacts,
+          webinyStreamArn
+        }),
+        stdio
+      });
+      deployedOptionalStacks = [webinyStackName];
+    } else if (await deleteCloudFormationStackIfExists({
+      stackName: webinyStackName,
+      region: runtimeConfig.awsRegion,
+      profile,
+      cwd: projectDir
+    })) {
+      removedOptionalStacks = [webinyStackName];
+    }
 
     const syncedCodeBuckets = noSync
       ? []
@@ -511,6 +619,8 @@ export async function deployAwsProject({
 
     return {
       stackName,
+      optionalStacks: deployedOptionalStacks,
+      removedOptionalStacks,
       packageDir: packaged.manifest.packageDir,
       runtimeManifestPath: normalizeRelative(projectDir, runtimeManifestPath),
       syncedCodeBuckets,

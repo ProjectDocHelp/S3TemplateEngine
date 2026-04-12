@@ -9,6 +9,7 @@ export {
   resolveCloudFrontAliases,
   resolveEnvironmentSitemapIntegration,
   resolveEnvironmentWebinyIntegration,
+  resolveOptionStackName,
   resolveRuntimeManifestParameterName,
   resolveProjectConfig,
   resolveStackName,

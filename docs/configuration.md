@@ -6,7 +6,7 @@
 
 Diese Datei ist:
 
-- Eingabe fuer `s3te init`, `validate`, `render`, `package`, `deploy` und `migrate`
+- Eingabe fuer `s3te init`, `validate`, `render`, `package`, `deploy` und `option`
 - die einzige Nutzer-konfigurierbare Laufzeitquelle fuer Varianten und Sprachen
 - strikt validiert, bevor Rendering oder Deployment startet
 
@@ -171,7 +171,7 @@ Die Zielimplementierung muss die Konfiguration in dieser Reihenfolge aufbereiten
 
 - optional
 - Standardwert: `1`
-- steuert spaetere Migrationen ueber `s3te migrate`
+- bleibt der zentrale Konfigurationsanker auch fuer spaetere `s3te option ...`-Aenderungen
 
 ### `project`
 

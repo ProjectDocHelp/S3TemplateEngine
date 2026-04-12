@@ -383,6 +383,10 @@ export function resolveStackName(config, environmentName) {
   return `${config.environments[environmentName].stackPrefix}-s3te-${config.project.name}`;
 }
 
+export function resolveOptionStackName(config, environmentName, optionName) {
+  return `${resolveStackName(config, environmentName)}-${String(optionName).trim().toLowerCase()}`;
+}
+
 export function buildEnvironmentRuntimeConfig(config, environmentName, stackOutputs = {}) {
   const environmentConfig = config.environments[environmentName];
   const webinyConfig = resolveEnvironmentWebinyIntegration(config, environmentName);

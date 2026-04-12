@@ -201,11 +201,11 @@ flowchart TD
 - prueft mit `--env <name>` auch, ob das ACM-Zertifikat die fuer dieses Environment abgeleiteten CloudFront-Aliase abdeckt
 - meldet haeufige Fehlerbilder vor Render oder Deploy
 
-### `s3te migrate`
+### `s3te option <name>`
 
-- aktualisiert die Projektkonfiguration auf den aktuellen S3TE-Stand
-- kann optionale Retrofit-Schalter wie `sitemap` oder Webiny in bestehende Projekte schreiben
-- darf Migrationshinweise und manuelle Nacharbeiten ausgeben
+- aktualisiert die Projektkonfiguration fuer optionale Zusatzteile wie `sitemap` oder Webiny
+- kann Optionen global oder pro Environment in bestehende Projekte schreiben
+- darf Hinweise zu noetigen manuellen Nacharbeiten ausgeben, zum Beispiel beim Webiny-DynamoDB-Stream
 
 ## Projektannahmen fuer README und Scaffolds
 

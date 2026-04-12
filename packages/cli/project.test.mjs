@@ -5,10 +5,10 @@ import os from "node:os";
 import path from "node:path";
 
 import { validateAndResolveProjectConfig } from "../core/src/index.mjs";
-import { doctorProject, migrateProject, runProjectTests, scaffoldProject, validateProject } from "./src/project.mjs";
+import { configureProjectOption, doctorProject, runProjectTests, scaffoldProject, validateProject } from "./src/project.mjs";
 
-test("migrateProject can retrofit webiny onto an existing S3TE config", async () => {
-  const migration = await migrateProject("s3te.config.json", {
+test("configureProjectOption can retrofit webiny onto an existing S3TE config", async () => {
+  const optionResult = await configureProjectOption("s3te.config.json", {
     project: {
       name: "mysite"
     },
@@ -30,20 +30,22 @@ test("migrateProject can retrofit webiny onto an existing S3TE config", async ()
       }
     }
   }, {
-    enableWebiny: true,
-    webinySourceTable: "webiny-1234567",
-    webinyTenant: "root",
-    webinyModels: ["article"]
+    optionName: "webiny",
+    enable: true,
+    sourceTable: "webiny-1234567",
+    tenant: "root",
+    models: ["article"]
   });
 
-  assert.equal(migration.config.integrations.webiny.enabled, true);
-  assert.equal(migration.config.integrations.webiny.sourceTableName, "webiny-1234567");
-  assert.equal(migration.config.integrations.webiny.tenant, "root");
-  assert.deepEqual(migration.config.integrations.webiny.relevantModels, ["staticContent", "staticCodeContent", "article"]);
+  assert.equal(optionResult.config.integrations.webiny.enabled, true);
+  assert.equal(optionResult.config.integrations.webiny.sourceTableName, "webiny-1234567");
+  assert.equal(optionResult.config.integrations.webiny.tenant, "root");
+  assert.deepEqual(optionResult.config.integrations.webiny.relevantModels, ["staticContent", "staticCodeContent", "article"]);
+  assert.equal("environments" in optionResult.config.integrations.webiny, false);
 });
 
-test("migrateProject can configure webiny per environment", async () => {
-  const migration = await migrateProject("s3te.config.json", {
+test("configureProjectOption can configure webiny per environment", async () => {
+  const optionResult = await configureProjectOption("s3te.config.json", {
     project: {
       name: "mysite"
     },
@@ -76,24 +78,25 @@ test("migrateProject can configure webiny per environment", async () => {
       }
     }
   }, {
+    optionName: "webiny",
     environment: "test",
-    enableWebiny: true,
-    webinySourceTable: "webiny-test",
-    webinyTenant: "preview",
-    webinyModels: ["article"]
+    enable: true,
+    sourceTable: "webiny-test",
+    tenant: "preview",
+    models: ["article"]
   });
 
-  assert.equal(migration.config.integrations.webiny.enabled, true);
-  assert.equal(migration.config.integrations.webiny.sourceTableName, "webiny-live");
-  assert.equal(migration.config.integrations.webiny.tenant, "root");
-  assert.equal(migration.config.integrations.webiny.environments.test.enabled, true);
-  assert.equal(migration.config.integrations.webiny.environments.test.sourceTableName, "webiny-test");
-  assert.equal(migration.config.integrations.webiny.environments.test.tenant, "preview");
-  assert.deepEqual(migration.config.integrations.webiny.environments.test.relevantModels, ["staticContent", "staticCodeContent", "article"]);
+  assert.equal(optionResult.config.integrations.webiny.enabled, true);
+  assert.equal(optionResult.config.integrations.webiny.sourceTableName, "webiny-live");
+  assert.equal(optionResult.config.integrations.webiny.tenant, "root");
+  assert.equal(optionResult.config.integrations.webiny.environments.test.enabled, true);
+  assert.equal(optionResult.config.integrations.webiny.environments.test.sourceTableName, "webiny-test");
+  assert.equal(optionResult.config.integrations.webiny.environments.test.tenant, "preview");
+  assert.deepEqual(optionResult.config.integrations.webiny.environments.test.relevantModels, ["staticContent", "staticCodeContent", "article"]);
 });
 
-test("migrateProject can retrofit sitemap onto an existing S3TE config", async () => {
-  const migration = await migrateProject("s3te.config.json", {
+test("configureProjectOption can retrofit sitemap onto an existing S3TE config", async () => {
+  const optionResult = await configureProjectOption("s3te.config.json", {
     project: {
       name: "mysite"
     },
@@ -115,15 +118,17 @@ test("migrateProject can retrofit sitemap onto an existing S3TE config", async (
       }
     }
   }, {
-    enableSitemap: true
+    optionName: "sitemap",
+    enable: true
   });
 
-  assert.equal(migration.config.integrations.sitemap.enabled, true);
-  assert.ok(migration.changes.some((change) => /Enabled sitemap integration/.test(change)));
+  assert.equal(optionResult.config.integrations.sitemap.enabled, true);
+  assert.equal("environments" in optionResult.config.integrations.sitemap, false);
+  assert.ok(optionResult.changes.some((change) => /Enabled sitemap option/.test(change)));
 });
 
-test("migrateProject can configure sitemap per environment", async () => {
-  const migration = await migrateProject("s3te.config.json", {
+test("configureProjectOption can configure sitemap per environment", async () => {
+  const optionResult = await configureProjectOption("s3te.config.json", {
     project: {
       name: "mysite"
     },
@@ -149,12 +154,13 @@ test("migrateProject can configure sitemap per environment", async () => {
       }
     }
   }, {
+    optionName: "sitemap",
     environment: "test",
-    enableSitemap: true
+    enable: true
   });
 
-  assert.equal(migration.config.integrations.sitemap.environments.test.enabled, true);
-  assert.ok(migration.changes.some((change) => /for environment test/.test(change)));
+  assert.equal(optionResult.config.integrations.sitemap.environments.test.enabled, true);
+  assert.ok(optionResult.changes.some((change) => /for environment test/.test(change)));
 });
 
 test("validateProject rejects an unknown environment with a clear error", async () => {

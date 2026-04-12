@@ -631,6 +631,7 @@ export function buildWebinyCloudFormationTemplate({ config, environment }) {
             Variables: {
               S3TE_ENVIRONMENT: environment,
               S3TE_CONTENT_TABLE: runtimeConfig.tables.content,
+              S3TE_CONTENT_ID_INDEX_NAME: config.aws.contentStore.contentIdIndexName,
               S3TE_RELEVANT_MODELS: runtimeConfig.integrations.webiny.relevantModels.join(","),
               S3TE_WEBINY_SOURCE_TABLE: runtimeConfig.integrations.webiny.sourceTableName,
               S3TE_WEBINY_TENANT: runtimeConfig.integrations.webiny.tenant ?? "",

@@ -76,8 +76,37 @@ function localeMatchScore(itemLocale, language, languageLocaleMap) {
   return 0;
 }
 
-function matchesRequestedLocale(item, language, languageLocaleMap) {
-  return localeMatchScore(item?.locale, language, languageLocaleMap) > 0;
+function comparableTimestamp(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  const timestamp = Date.parse(String(value ?? ""));
+  return Number.isFinite(timestamp) ? timestamp : -1;
+}
+
+function compareContentFreshness(left, right) {
+  const updatedDiff = comparableTimestamp(right.updatedAt) - comparableTimestamp(left.updatedAt);
+  if (updatedDiff !== 0) {
+    return updatedDiff;
+  }
+
+  const changedDiff = comparableTimestamp(right.lastChangedAt) - comparableTimestamp(left.lastChangedAt);
+  if (changedDiff !== 0) {
+    return changedDiff;
+  }
+
+  const createdDiff = comparableTimestamp(right.createdAt) - comparableTimestamp(left.createdAt);
+  if (createdDiff !== 0) {
+    return createdDiff;
+  }
+
+  const versionDiff = Number(right.version ?? -1) - Number(left.version ?? -1);
+  if (versionDiff !== 0) {
+    return versionDiff;
+  }
+
+  return String(right.id ?? "").localeCompare(String(left.id ?? ""));
 }
 
 function filterItemsByRequestedLocale(items, language, languageLocaleMap) {
@@ -103,7 +132,11 @@ function filterItemsByRequestedLocale(items, language, languageLocaleMap) {
     }
 
     const bestScore = Math.max(...scored.map((entry) => entry.score));
-    return scored.filter((entry) => entry.score === bestScore).map((entry) => entry.item);
+    return scored
+      .filter((entry) => entry.score === bestScore)
+      .map((entry) => entry.item)
+      .sort(compareContentFreshness)
+      .slice(0, 1);
   });
 }
 
@@ -390,14 +423,7 @@ export class DynamoContentRepository {
       }
     }).promise();
     const items = response.Items ?? [];
-    const candidates = items
-      .map((item) => ({
-        item,
-        score: localeMatchScore(item.locale, language, this.languageLocaleMap)
-      }))
-      .filter((entry) => entry.score > 0)
-      .sort((left, right) => right.score - left.score || String(left.item.id).localeCompare(String(right.item.id)));
-    return candidates[0]?.item ?? null;
+    return filterItemsByRequestedLocale(items, language, this.languageLocaleMap)[0] ?? null;
   }
 
   async query(query, language) {

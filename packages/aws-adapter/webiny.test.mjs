@@ -136,3 +136,48 @@ test("DynamoContentRepository prefers locale-matched items for Webiny localized 
   assert.equal(germanItem?.locale, "de-DE");
   assert.deepEqual(englishQuery.map((item) => item.locale), ["en-US"]);
 });
+
+test("DynamoContentRepository prefers the newest mirrored revision for the same content and locale", async () => {
+  const items = [
+    {
+      id: "entry#0001",
+      contentId: "description",
+      locale: undefined,
+      updatedAt: "2026-04-12T09:57:04.646Z",
+      values: { content: "old" }
+    },
+    {
+      id: "entry#0002",
+      contentId: "description",
+      locale: undefined,
+      updatedAt: "2026-04-12T11:06:51.693Z",
+      values: { content: "new" }
+    }
+  ];
+
+  const repository = new DynamoContentRepository({
+    tableName: "content",
+    indexName: "contentid",
+    dynamo: {
+      query() {
+        return {
+          promise: async () => ({ Items: items })
+        };
+      },
+      scan() {
+        return {
+          promise: async () => ({ Items: items })
+        };
+      }
+    }
+  });
+
+  const item = await repository.getByContentId("description", "de");
+  const queried = await repository.query({
+    filter: [{ contentId: { S: "description" } }]
+  }, "de");
+
+  assert.equal(item?.id, "entry#0002");
+  assert.equal(item?.values.content, "new");
+  assert.deepEqual(queried.map((entry) => entry.id), ["entry#0002"]);
+});

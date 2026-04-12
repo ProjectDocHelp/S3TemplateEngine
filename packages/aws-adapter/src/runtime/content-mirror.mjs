@@ -314,6 +314,17 @@ function extractWebinyTenant(item) {
     ?? null;
 }
 
+function normalizeMirrorLocale(value) {
+  return value == null ? "" : String(value).trim().toLowerCase();
+}
+
+function isSameMirroredContentIdentity(existingItem, contentItem) {
+  return String(existingItem.contentId ?? "") === String(contentItem.contentId ?? "")
+    && String(existingItem.model ?? "") === String(contentItem.model ?? "")
+    && String(existingItem.tenant ?? "") === String(contentItem.tenant ?? "")
+    && normalizeMirrorLocale(existingItem.locale) === normalizeMirrorLocale(contentItem.locale);
+}
+
 export function normalizeContentItem(item, options = {}) {
   const root = getItemRoot(item);
   const values = normalizeValues(item, options.modelFields);
@@ -369,12 +380,53 @@ async function loadModelFields(clients, sourceTableName, tenant, modelId, cache)
   return fields;
 }
 
+async function listMirroredContentItems(clients, tableName, indexName, contentId) {
+  const items = [];
+  let lastEvaluatedKey;
+
+  do {
+    const response = await clients.dynamo.query({
+      TableName: tableName,
+      IndexName: indexName,
+      KeyConditionExpression: "contentId = :contentId",
+      ExpressionAttributeValues: {
+        ":contentId": contentId
+      },
+      ExclusiveStartKey: lastEvaluatedKey
+    }).promise();
+    items.push(...(response.Items ?? []));
+    lastEvaluatedKey = response.LastEvaluatedKey;
+  } while (lastEvaluatedKey);
+
+  return items;
+}
+
+async function removeMirroredContentRevisions(clients, tableName, indexName, contentItem, excludeId = null) {
+  const mirroredItems = await listMirroredContentItems(clients, tableName, indexName, contentItem.contentId);
+  const removals = mirroredItems.filter((existingItem) => (
+    isSameMirroredContentIdentity(existingItem, contentItem)
+    && existingItem.id !== excludeId
+  ));
+
+  for (const existingItem of removals) {
+    await clients.dynamo.delete({
+      TableName: tableName,
+      Key: {
+        id: existingItem.id
+      }
+    }).promise();
+  }
+
+  return removals.length;
+}
+
 export async function handler(event) {
   const clients = createAwsClients();
   const tableName = process.env.S3TE_CONTENT_TABLE;
   const renderWorkerName = process.env.S3TE_RENDER_WORKER_NAME;
   const environmentName = process.env.S3TE_ENVIRONMENT;
   const sourceTableName = process.env.S3TE_WEBINY_SOURCE_TABLE;
+  const contentIndexName = process.env.S3TE_CONTENT_ID_INDEX_NAME ?? "contentid";
   const configuredTenant = String(process.env.S3TE_WEBINY_TENANT ?? "").trim();
   const relevantModels = new Set(String(process.env.S3TE_RELEVANT_MODELS ?? "")
     .split(",")
@@ -411,13 +463,7 @@ export async function handler(event) {
 
     const shouldDelete = record.eventName === "REMOVE" || !isPublished(item);
     if (shouldDelete) {
-      await clients.dynamo.delete({
-        TableName: tableName,
-        Key: {
-          id: contentItem.id
-        }
-      }).promise();
-      deleted += 1;
+      deleted += await removeMirroredContentRevisions(clients, tableName, contentIndexName, contentItem);
       await invokeLambdaEvent(clients.lambda, renderWorkerName, {
         type: "content-item",
         action: "delete",
@@ -429,6 +475,7 @@ export async function handler(event) {
       continue;
     }
 
+    await removeMirroredContentRevisions(clients, tableName, contentIndexName, contentItem, contentItem.id);
     await clients.dynamo.put({
       TableName: tableName,
       Item: contentItem

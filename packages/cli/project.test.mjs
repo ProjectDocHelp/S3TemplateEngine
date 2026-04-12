@@ -6,7 +6,7 @@ import path from "node:path";
 
 import { validateAndResolveProjectConfig } from "../core/src/index.mjs";
 import { loadLocalContent } from "./src/fs-adapters.mjs";
-import { configureProjectOption, doctorProject, downloadProjectContent, runProjectTests, scaffoldProject, validateProject } from "./src/project.mjs";
+import { configureProjectOption, doctorProject, downloadProjectContent, renderProject, runProjectTests, scaffoldProject, validateProject } from "./src/project.mjs";
 
 test("configureProjectOption can retrofit webiny onto an existing S3TE config", async () => {
   const optionResult = await configureProjectOption("s3te.config.json", {
@@ -445,6 +445,81 @@ test("downloadProjectContent writes a deduplicated local content snapshot for of
   assert.deepEqual(writtenItems.map((entry) => entry.id), ["entry#0002"]);
   assert.equal(item?.id, "entry#0002");
   assert.equal(item?.values.content, "new");
+});
+
+test("renderProject resolves partDir correctly when another variant name matches the path prefix", async (context) => {
+  const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "s3te-render-"));
+  context.after(async () => {
+    await fs.rm(projectDir, { recursive: true, force: true });
+  });
+  await fs.mkdir(path.join(projectDir, "app", "website"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "part"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "app"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "app-part"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "offline", "content"), { recursive: true });
+
+  await fs.writeFile(path.join(projectDir, "app", "website", "index.html"), "<part>head.part</part><body><part>header.part</part><main>Website</main><part>footer.part</part></body>\n");
+  await fs.writeFile(path.join(projectDir, "app", "part", "head.part"), "<!doctype html><html><head><title>Website</title></head>\n");
+  await fs.writeFile(path.join(projectDir, "app", "part", "header.part"), "<header>Header</header>\n");
+  await fs.writeFile(path.join(projectDir, "app", "part", "footer.part"), "<footer>Footer</footer></html>\n");
+  await fs.writeFile(path.join(projectDir, "app", "app", "index.html"), "<body>App</body>\n");
+  await fs.writeFile(path.join(projectDir, "app", "app-part", "head.part"), "<title>App</title>\n");
+  await fs.writeFile(path.join(projectDir, "offline", "content", "items.json"), "[]\n");
+
+  const resolved = await validateAndResolveProjectConfig({
+    project: {
+      name: "sop"
+    },
+    rendering: {
+      outputDir: "offline/S3TELocal/preview"
+    },
+    environments: {
+      test: {
+        awsRegion: "eu-west-1",
+        stackPrefix: "TEST",
+        certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/test"
+      }
+    },
+    variants: {
+      website: {
+        sourceDir: "app/website",
+        partDir: "app/part",
+        defaultLanguage: "de",
+        languages: {
+          de: {
+            baseUrl: "schwimmbad-oberprechtal.de",
+            cloudFrontAliases: ["schwimmbad-oberprechtal.de"]
+          }
+        }
+      },
+      app: {
+        sourceDir: "app/app",
+        partDir: "app/app-part",
+        defaultLanguage: "de",
+        languages: {
+          de: {
+            baseUrl: "app.schwimmbad-oberprechtal.de",
+            cloudFrontAliases: ["app.schwimmbad-oberprechtal.de"]
+          }
+        }
+      }
+    }
+  }, {
+    projectDir
+  });
+  assert.equal(resolved.ok, true);
+
+  const report = await renderProject(projectDir, resolved.config, {
+    environment: "test",
+    variant: "website"
+  });
+
+  assert.equal(report.warnings.length, 0);
+
+  const rendered = await fs.readFile(path.join(projectDir, "offline", "S3TELocal", "preview", "test", "website", "de", "index.html"), "utf8");
+  assert.match(rendered, /^<!doctype html><html><head><title>Website<\/title><\/head>/);
+  assert.match(rendered, /<header>Header<\/header>/);
+  assert.match(rendered, /<footer>Footer<\/footer><\/html>/);
 });
 
 test("scaffoldProject merges an existing npm-generated package.json", async (context) => {

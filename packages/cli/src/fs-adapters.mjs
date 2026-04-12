@@ -7,6 +7,12 @@ function normalizeKey(value) {
   return String(value).replace(/\\/g, "/");
 }
 
+function matchesProjectRelativeRoot(key, root) {
+  const normalizedKey = normalizeKey(key);
+  const normalizedRoot = normalizeKey(root);
+  return normalizedKey === normalizedRoot || normalizedKey.startsWith(`${normalizedRoot}/`);
+}
+
 function normalizeLocale(value) {
   return String(value).trim().toLowerCase();
 }
@@ -121,6 +127,15 @@ export class FileSystemTemplateRepository {
 
   resolveKey(key) {
     const normalized = normalizeKey(key);
+
+    for (const variantConfig of Object.values(this.config.variants)) {
+      if (
+        matchesProjectRelativeRoot(normalized, variantConfig.sourceDir)
+        || matchesProjectRelativeRoot(normalized, variantConfig.partDir)
+      ) {
+        return path.join(this.projectDir, normalized);
+      }
+    }
 
     for (const [variantName, variantConfig] of Object.entries(this.config.variants)) {
       if (normalized === variantName || normalized.startsWith(`${variantName}/`)) {

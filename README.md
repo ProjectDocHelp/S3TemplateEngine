@@ -17,7 +17,7 @@ This README is the user guide for the rewrite generation. The deeper implementat
   - [Usage](#usage)
     - [Daily Workflow](#daily-workflow)
     - [CLI Commands](#cli-commands)
-    - [Template Commands](#template-commands)
+  - [Template Commands](#template-commands)
   - [Optional: Sitemap](#optional-sitemap)
   - [Optional: Webiny CMS](#optional-webiny-cms)
 
@@ -488,15 +488,38 @@ Once Webiny is installed and the stack is deployed with Webiny enabled, CMS cont
 
 </details>
 
-### Template Commands
+## Template Commands
 
-These are the core S3TE commands you will use even in a plain HTML-only project.
+S3TE uses literal HTML-like tags inside your `.html` and `.part` files. The tags are case-sensitive, always lowercase, and never use attributes. JSON-based commands must contain valid JSON and reject unknown properties.
+
+The commands below are grouped by purpose:
+
+- `Core Features` work in every S3TE project.
+- `Webiny Features` are the content-driven commands. Despite the name, they also work with local content files under `offline/content/` when you are not using Webiny yet.
+
+### Core Features
 
 <details>
-  <summary><code>&lt;part&gt;</code> - reuse a partial file</summary>
+  <summary><code>&lt;part&gt;</code> - reuse a partial file from <code>partDir</code></summary>
+
+**Action**
+
+Loads another template fragment from the current variant's `partDir`, renders it recursively, and inserts the result at the current position.
+
+**Syntax**
 
 ```html
 <part>head.part</part>
+```
+
+The payload must be a relative path inside `partDir`. Leading `/` and `..` are invalid.
+
+**Example**
+
+```html
+<head>
+  <part>head.part</part>
+</head>
 ```
 
 </details>
@@ -504,10 +527,42 @@ These are the core S3TE commands you will use even in a plain HTML-only project.
 <details>
   <summary><code>&lt;if&gt;</code> - render inline HTML only when a condition matches</summary>
 
+**Action**
+
+Evaluates one inline JSON rule and renders its `template` only when the rule matches the current render target.
+
+**Syntax**
+
+```html
+<if>{
+  "env": "prod",
+  "file": "index.html",
+  "not": false,
+  "template": "<meta name='robots' content='all'>"
+}</if>
+```
+
+Supported JSON properties:
+
+- `env` optional: matches the current environment name case-insensitively
+- `file` optional: matches the current output filename, for example `index.html`
+- `not` optional: inverts the final result when `true`
+- `template` required: inline HTML to render when the rule matches
+
+If both `env` and `file` are present, both must match.
+
+If both conditions are omitted, the tag behaves like an inline template include and always renders its `template`.
+
+**Example**
+
 ```html
 <if>{
   "env": "prod",
   "template": "<meta name='robots' content='all'>"
+}</if>
+<if>{
+  "env": "test",
+  "template": "<meta name='robots' content='noindex'>"
 }</if>
 ```
 
@@ -516,24 +571,67 @@ These are the core S3TE commands you will use even in a plain HTML-only project.
 <details>
   <summary><code>&lt;fileattribute&gt;</code> - print metadata of the current output file</summary>
 
+**Action**
+
+Prints metadata of the file currently being rendered.
+
+**Syntax**
+
 ```html
 <fileattribute>filename</fileattribute>
+```
+
+Currently supported values:
+
+- `filename`: the output key relative to the target bucket, for example `news/article-one.html`
+
+**Example**
+
+```html
+<link rel="canonical" href="https://<lang>baseurl</lang>/<fileattribute>filename</fileattribute>">
 ```
 
 </details>
 
 <details>
-  <summary><code>&lt;lang&gt;</code> - print the current language metadata</summary>
+  <summary><code>&lt;lang&gt;</code> - print current language metadata</summary>
+
+**Action**
+
+Prints language-related metadata of the current render target.
+
+**Syntax**
+
+```html
+<lang>2</lang>
+<lang>baseurl</lang>
+```
+
+Currently supported values:
+
+- `2`: the current language code such as `en` or `de`
+- `baseurl`: the resolved base hostname for the current language and environment
+
+**Example**
 
 ```html
 <html lang="<lang>2</lang>">
-<link rel="canonical" href="https://<lang>baseurl</lang>">
+  <head>
+    <link rel="canonical" href="https://<lang>baseurl</lang>">
+  </head>
+</html>
 ```
 
 </details>
 
 <details>
   <summary><code>&lt;switchlang&gt;</code> - choose inline content by language</summary>
+
+**Action**
+
+Selects the block whose tag name matches the current language and renders only that block.
+
+**Syntax**
 
 ```html
 <switchlang>
@@ -542,9 +640,270 @@ These are the core S3TE commands you will use even in a plain HTML-only project.
 </switchlang>
 ```
 
+There is no fallback to `defaultLanguage`. If the current language block is missing, S3TE renders an empty string and records a warning.
+
+**Example**
+
+```html
+<p>
+  <switchlang>
+    <de>Dein ultimatives Website-Werkzeug</de>
+    <en>Your ultimate website tool</en>
+  </switchlang>
+</p>
+```
+
 </details>
 
-If you also want content-driven commands such as `dbmulti` or `dbmultifile`, continue with the optional Webiny section below. The same commands can also read from local `offline/content/*.json` files when you are not using Webiny yet.
+### Webiny Features
+
+These commands read from the resolved content repository. With Webiny enabled, that means mirrored Webiny content. Without Webiny, the same commands can read from local JSON files under `offline/content/`.
+
+<details>
+  <summary><code>&lt;dbpart&gt;</code> - insert one content fragment by <code>contentId</code></summary>
+
+**Action**
+
+Loads a single content item by `contentId` and inserts its content fragment.
+
+S3TE first tries the language-specific field `content&lt;lang&gt;`, for example `contentde`, and falls back to `content` if the language-specific field does not exist.
+
+**Syntax**
+
+```html
+<dbpart>impressum</dbpart>
+```
+
+The payload is the content ID, not the internal database record ID.
+
+**Example**
+
+```html
+<body>
+  <dbpart>impressum</dbpart>
+</body>
+```
+
+</details>
+
+<details>
+  <summary><code>&lt;dbmulti&gt;</code> - render one inline template for multiple content items</summary>
+
+**Action**
+
+Queries matching content items and renders the given inline template once for each result.
+
+**Syntax**
+
+```html
+<dbmulti>{
+  "filter": [
+    {"forWebsite": {"BOOL": true}}
+  ],
+  "filtertype": "equals",
+  "limit": 3,
+  "template": "<article><h2><dbitem>headline</dbitem></h2></article>"
+}</dbmulti>
+```
+
+Supported JSON properties:
+
+- `filter` required: array of legacy DynamoDB-style filter clauses
+- `filtertype` optional: `equals` or `contains`, default is `equals`
+- `limit` optional: maximum number of items to render
+- `template` required: inline template rendered once per match
+
+Filter notes:
+
+- every filter clause contains exactly one field
+- multiple clauses are combined with logical `AND`
+- `__typename` matches the content model, for example `article`
+- supported legacy value wrappers are `S`, `N`, `BOOL`, `NULL`, and `L`
+- results are sorted deterministically; numeric `order` comes first, then `contentId`, then `id`
+
+**Example**
+
+```html
+<dbmulti>{
+  "filter": [
+    {"__typename": {"S": "article"}},
+    {"forWebsite": {"BOOL": true}}
+  ],
+  "limit": 3,
+  "template": "<a href='article-<dbitem>slug</dbitem>.html'><h2><dbitem>headline</dbitem></h2></a>"
+}</dbmulti>
+```
+
+</details>
+
+<details>
+  <summary><code>&lt;dbmultifile&gt;</code> - generate one output file per content item</summary>
+
+**Action**
+
+Turns one source template into multiple output files. The content items are selected by filter, and each item produces one rendered file.
+
+**Syntax**
+
+```html
+<dbmultifile>{
+  "filenamesuffix": "slug",
+  "filter": [
+    {"__typename": {"S": "article"}}
+  ],
+  "limit": 10
+}</dbmultifile>
+<!doctype html>
+<html>
+  <body>
+    <h1><dbmultifileitem>headline</dbmultifileitem></h1>
+  </body>
+</html>
+```
+
+Supported JSON properties:
+
+- `filenamesuffix` required: field whose value becomes the filename suffix
+- `filter` required: array of legacy DynamoDB-style filter clauses
+- `filtertype` optional: `equals` or `contains`, default is `equals`
+- `limit` optional: maximum number of files to generate
+
+Rules:
+
+- `dbmultifile` must be the first non-whitespace construct in the file
+- the control block itself is not part of the output
+- generated filenames follow the pattern `<basename>-<suffix>.<ext>`
+- the suffix must not be empty and must not contain `/`, `\\`, or `:`
+- suffixes must be unique within that template
+
+**Example**
+
+If the source file is `article.html` and the current item has `"slug": "first-article"`, the generated output becomes `article-first-article.html`.
+
+```html
+<dbmultifile>{
+  "filenamesuffix": "slug",
+  "filter": [
+    {"__typename": {"S": "article"}}
+  ]
+}</dbmultifile>
+<article>
+  <h1><dbmultifileitem>headline</dbmultifileitem></h1>
+</article>
+```
+
+</details>
+
+<details>
+  <summary><code>&lt;dbitem&gt;</code> - print one field of the current content item</summary>
+
+**Action**
+
+Reads one field from the current content item. This works inside `dbmulti` templates and inside `dbmultifile` bodies.
+
+**Syntax**
+
+```html
+<dbitem>headline</dbitem>
+```
+
+Special field names:
+
+- `__typename`
+- `contentId`
+- `id`
+- `locale`
+- `tenant`
+- `_version`
+- `_lastChangedAt`
+
+For the field name `content`, S3TE again prefers `content&lt;lang&gt;` over `content`.
+
+If the field value is a string array, S3TE serializes it as concatenated HTML links.
+
+**Example**
+
+```html
+<dbmulti>{
+  "filter": [{"__typename": {"S": "article"}}],
+  "template": "<article><h2><dbitem>headline</dbitem></h2><div><dbitem>content</dbitem></div></article>"
+}</dbmulti>
+```
+
+</details>
+
+<details>
+  <summary><code>&lt;dbmultifileitem&gt;</code> - print or transform fields inside a <code>dbmultifile</code> body</summary>
+
+**Action**
+
+Reads one field from the current content item and can apply one transformation mode. It is primarily meant for `dbmultifile` bodies, but works wherever a current content item exists.
+
+**Syntax**
+
+Simple field output:
+
+```html
+<dbmultifileitem>headline</dbmultifileitem>
+```
+
+JSON command mode:
+
+```html
+<dbmultifileitem>{"field":"content","limit":160}</dbmultifileitem>
+```
+
+Supported JSON properties:
+
+- `field` required
+- `limit` optional: truncate text to a maximum length and append `...`
+- `limitlow` optional: choose a random length between `limitlow` and `limit`
+- `format` optional: currently only `date`
+- `locale` optional: used with `format: "date"`
+- `divideattag` optional: cut a section out of the field value
+- `startnumber` optional: 1-based occurrence number for the divide start
+- `endnumber` optional: 1-based occurrence number for the divide end
+
+Only one transform mode is allowed at a time:
+
+- limit mode: `limit` with optional `limitlow`
+- date mode: `format: "date"`
+- divide mode: `divideattag`
+
+Date mode formats `de` as `dd.mm.yyyy`. All other locales currently format as `mm/dd/yyyy`.
+
+**Examples**
+
+Simple field output:
+
+```html
+<dbmultifileitem>headline</dbmultifileitem>
+```
+
+Truncated teaser text:
+
+```html
+<dbmultifileitem>{"field":"content","limit":160}</dbmultifileitem>
+```
+
+Date formatting:
+
+```html
+<dbmultifileitem>{"field":"publishedAt","format":"date","locale":"de"}</dbmultifileitem>
+```
+
+Extract one section from a larger HTML field:
+
+```html
+<dbmultifileitem>{
+  "field":"content",
+  "divideattag":"<h2>",
+  "startnumber":2,
+  "endnumber":3
+}</dbmultifileitem>
+```
+
+</details>
 
 ## Optional: Sitemap
 
@@ -718,15 +1077,4 @@ For localized Webiny projects, the language block can also carry the mapping exp
 
 </details>
 
-<details>
-  <summary>Content template commands</summary>
-
-These commands are useful both with Webiny and with local JSON content files:
-
-- `dbpart`
-- `dbmulti`
-- `dbmultifile`
-- `dbitem`
-- `dbmultifileitem`
-
-</details>
+The content-driven tags are documented in [Template Commands](#template-commands), section [Webiny Features](#webiny-features).

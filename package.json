@@ -1,6 +1,6 @@
 {
   "name": "@projectdochelp/s3te",
-  "version": "3.4.5",
+  "version": "3.4.6",
   "description": "CLI, render core, AWS adapter, and testkit for S3TemplateEngine projects",
   "repository": {
     "type": "git",

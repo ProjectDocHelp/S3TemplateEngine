@@ -307,12 +307,27 @@ function normalizeValues(item, modelFields = []) {
   return values;
 }
 
-function isPublished(item) {
+export function isPublished(item) {
   const root = getItemRoot(item);
-  return root.status === "published"
-    || root.published === true
-    || root.isPublished === true
-    || root.publishedOn != null
+  const status = String(root.status ?? "").trim().toLowerCase();
+
+  if (["published", "published_latest"].includes(status)) {
+    return true;
+  }
+
+  if (["draft", "unpublished", "unpublish", "deleted", "archived"].includes(status)) {
+    return false;
+  }
+
+  if (root.published === false || root.isPublished === false) {
+    return false;
+  }
+
+  if (root.published === true || root.isPublished === true) {
+    return true;
+  }
+
+  return root.publishedOn != null
     || root.firstPublishedOn != null
     || root.lastPublishedOn != null;
 }

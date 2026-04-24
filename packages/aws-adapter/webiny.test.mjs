@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { gzipSync } from "node:zlib";
 
-import { normalizeContentItem, matchesConfiguredTenant } from "./src/runtime/content-mirror.mjs";
+import { isPublished, normalizeContentItem, matchesConfiguredTenant } from "./src/runtime/content-mirror.mjs";
 import { DynamoContentRepository } from "./src/runtime/common.mjs";
 
 test("normalizeContentItem understands Webiny-style entryId, modelId, locale, tenant, and data fields", () => {
@@ -50,6 +50,27 @@ test("matchesConfiguredTenant only accepts the configured Webiny tenant when pro
   assert.equal(matchesConfiguredTenant({ tenant: "other" }, "root"), false);
   assert.equal(matchesConfiguredTenant({}, "root"), false);
   assert.equal(matchesConfiguredTenant({ tenant: "root" }, ""), true);
+});
+
+test("isPublished treats explicit unpublish state as delete even when Webiny keeps publish timestamps", () => {
+  assert.equal(isPublished({
+    status: "published",
+    lastPublishedOn: "2026-04-12T08:05:00.000Z"
+  }), true);
+  assert.equal(isPublished({
+    status: "unpublished",
+    lastPublishedOn: "2026-04-12T08:05:00.000Z"
+  }), false);
+  assert.equal(isPublished({
+    data: {
+      status: "draft",
+      publishedOn: "2026-04-12T08:05:00.000Z"
+    }
+  }), false);
+  assert.equal(isPublished({
+    published: false,
+    lastPublishedOn: "2026-04-12T08:05:00.000Z"
+  }), false);
 });
 
 test("normalizeContentItem understands Webiny V6 latest records with nested data and storage ids", () => {

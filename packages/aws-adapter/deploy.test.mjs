@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { collectBucketObjectVersions, summarizeStackFailureEvents } from "./src/deploy.mjs";
+import { buildArtifactObjectKey, collectBucketObjectVersions, summarizeStackFailureEvents } from "./src/deploy.mjs";
 
 test("collectBucketObjectVersions includes versions and delete markers", () => {
   const objects = collectBucketObjectVersions({
@@ -29,6 +29,22 @@ test("collectBucketObjectVersions includes versions and delete markers", () => {
       VersionId: "222"
     }
   ]);
+});
+
+test("buildArtifactObjectKey adds content hash before the artifact extension", () => {
+  assert.equal(buildArtifactObjectKey({
+    projectName: "sop",
+    environment: "prod",
+    artifactS3Key: "lambda/content-mirror.zip",
+    contentHash: "0123456789abcdef"
+  }), "sop/prod/lambda/content-mirror-0123456789abcdef.zip");
+
+  assert.equal(buildArtifactObjectKey({
+    projectName: "sop",
+    environment: "prod",
+    artifactS3Key: "lambda\\render-worker.zip",
+    contentHash: "abcdef0123456789"
+  }), "sop/prod/lambda/render-worker-abcdef0123456789.zip");
 });
 
 test("summarizeStackFailureEvents keeps relevant CloudFormation failures", () => {

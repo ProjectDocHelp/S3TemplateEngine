@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -33,6 +34,28 @@ async function writeJsonFile(filePath, value) {
 
 function temporaryStackName(stackName) {
   return `${stackName}-deploy-temp`;
+}
+
+function appendHashToArtifactKey(s3Key, contentHash) {
+  const normalizedKey = String(s3Key).replace(/\\/g, "/");
+  const slashIndex = normalizedKey.lastIndexOf("/");
+  const prefix = slashIndex >= 0 ? `${normalizedKey.slice(0, slashIndex + 1)}` : "";
+  const filename = slashIndex >= 0 ? normalizedKey.slice(slashIndex + 1) : normalizedKey;
+  const extensionIndex = filename.lastIndexOf(".");
+  const hashedFilename = extensionIndex > 0
+    ? `${filename.slice(0, extensionIndex)}-${contentHash}${filename.slice(extensionIndex)}`
+    : `${filename}-${contentHash}`;
+
+  return `${prefix}${hashedFilename}`;
+}
+
+export function buildArtifactObjectKey({ projectName, environment, artifactS3Key, contentHash }) {
+  return `${projectName}/${environment}/${appendHashToArtifactKey(artifactS3Key, contentHash)}`;
+}
+
+async function hashFile(filePath) {
+  const content = await fs.readFile(filePath);
+  return createHash("sha256").update(content).digest("hex").slice(0, 16);
 }
 
 function stackDoesNotExist(error) {
@@ -152,6 +175,7 @@ async function deployCloudFormationStack({
   if (noExecute) {
     args.push("--no-execute-changeset");
   }
+  args.push("--no-fail-on-empty-changeset");
 
   try {
     await runAwsCli(args, {
@@ -466,7 +490,12 @@ export async function deployAwsProject({
     const uploadedArtifacts = {};
     for (const [artifactName, artifact] of Object.entries(packaged.manifest.lambdaArtifacts)) {
       const bodyPath = path.join(projectDir, artifact.archive);
-      const key = `${config.project.name}/${environment}/${artifact.s3Key}`;
+      const key = buildArtifactObjectKey({
+        projectName: config.project.name,
+        environment,
+        artifactS3Key: artifact.s3Key,
+        contentHash: await hashFile(bodyPath)
+      });
       await uploadArtifact({
         bucketName: tempStack.artifactBucket,
         key,

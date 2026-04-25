@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { gzipSync } from "node:zlib";
 
-import { isPublished, normalizeContentItem, matchesConfiguredTenant } from "./src/runtime/content-mirror.mjs";
+import {
+  isPublished,
+  normalizeContentItem,
+  matchesConfiguredTenant,
+  shouldMirrorWebinyStreamItem
+} from "./src/runtime/content-mirror.mjs";
 import { DynamoContentRepository } from "./src/runtime/common.mjs";
 
 test("normalizeContentItem understands Webiny-style entryId, modelId, locale, tenant, and data fields", () => {
@@ -50,6 +55,115 @@ test("matchesConfiguredTenant only accepts the configured Webiny tenant when pro
   assert.equal(matchesConfiguredTenant({ tenant: "other" }, "root"), false);
   assert.equal(matchesConfiguredTenant({}, "root"), false);
   assert.equal(matchesConfiguredTenant({ tenant: "root" }, ""), true);
+});
+
+test("shouldMirrorWebinyStreamItem ignores Webiny draft latest and revision status churn", () => {
+  function entry({ key, type, status, version = 3, liveVersion = 3 }) {
+    return {
+      PK: "T#root#CMS#CME#entry-1",
+      SK: key,
+      TYPE: type,
+      data: {
+        id: `entry-1#${String(version).padStart(4, "0")}`,
+        entryId: "entry-1",
+        modelId: "article",
+        tenant: "root",
+        status,
+        version,
+        live: {
+          version: liveVersion
+        },
+        values: {
+          title: "Article"
+        }
+      }
+    };
+  }
+
+  assert.equal(shouldMirrorWebinyStreamItem(entry({
+    key: "L",
+    type: "cms.entry.l",
+    status: "draft",
+    version: 3,
+    liveVersion: 2
+  })), false);
+  assert.equal(shouldMirrorWebinyStreamItem(entry({
+    key: "P",
+    type: "cms.entry.p",
+    status: "published"
+  })), true);
+  assert.equal(shouldMirrorWebinyStreamItem(entry({
+    key: "REV#0003",
+    type: "cms.entry",
+    status: "published"
+  })), false);
+  assert.equal(shouldMirrorWebinyStreamItem(entry({
+    key: "REV#0002",
+    type: "cms.entry",
+    status: "unpublished",
+    version: 2,
+    liveVersion: 2
+  })), false);
+  assert.equal(shouldMirrorWebinyStreamItem({
+    id: "legacy-entry",
+    modelId: "article",
+    status: "published"
+  }), true);
+});
+
+test("Webiny publish sequence does not turn unpublished old revisions into mirror deletes", () => {
+  function entry({ key, type, status, version, liveVersion }) {
+    return {
+      PK: "T#root#CMS#CME#69da58292212ca00029fdf54",
+      SK: key,
+      TYPE: type,
+      data: {
+        id: `69da58292212ca00029fdf54#${String(version).padStart(4, "0")}`,
+        entryId: "69da58292212ca00029fdf54",
+        modelId: "article",
+        tenant: "root",
+        status,
+        version,
+        live: {
+          version: liveVersion
+        },
+        values: {
+          "text@titleField": "KINDERSCHWIMMKURS 2025"
+        }
+      }
+    };
+  }
+
+  const streamRecords = [
+    { eventName: "INSERT", item: entry({ key: "REV#0003", type: "cms.entry", status: "draft", version: 3, liveVersion: 2 }) },
+    { eventName: "MODIFY", item: entry({ key: "L", type: "cms.entry.l", status: "draft", version: 3, liveVersion: 2 }) },
+    { eventName: "MODIFY", item: entry({ key: "REV#0003", type: "cms.entry", status: "published", version: 3, liveVersion: 3 }) },
+    { eventName: "MODIFY", item: entry({ key: "L", type: "cms.entry.l", status: "published", version: 3, liveVersion: 3 }) },
+    { eventName: "MODIFY", item: entry({ key: "P", type: "cms.entry.p", status: "published", version: 3, liveVersion: 3 }) },
+    { eventName: "MODIFY", item: entry({ key: "REV#0002", type: "cms.entry", status: "unpublished", version: 2, liveVersion: 2 }) },
+    { eventName: "INSERT", item: entry({ key: "REV#0004", type: "cms.entry", status: "draft", version: 4, liveVersion: 3 }) },
+    { eventName: "MODIFY", item: entry({ key: "L", type: "cms.entry.l", status: "draft", version: 4, liveVersion: 3 }) },
+    { eventName: "MODIFY", item: entry({ key: "REV#0004", type: "cms.entry", status: "published", version: 4, liveVersion: 4 }) },
+    { eventName: "MODIFY", item: entry({ key: "P", type: "cms.entry.p", status: "published", version: 4, liveVersion: 4 }) },
+    { eventName: "MODIFY", item: entry({ key: "L", type: "cms.entry.l", status: "published", version: 4, liveVersion: 4 }) },
+    { eventName: "MODIFY", item: entry({ key: "REV#0003", type: "cms.entry", status: "unpublished", version: 3, liveVersion: 3 }) }
+  ];
+
+  const actions = streamRecords
+    .filter(({ item }) => shouldMirrorWebinyStreamItem(item))
+    .map(({ eventName, item }) => ({
+      action: eventName === "REMOVE" || !isPublished(item) ? "delete" : "upsert",
+      key: item.SK,
+      id: item.data.id
+    }));
+
+  assert.deepEqual(actions, [
+    { action: "upsert", key: "L", id: "69da58292212ca00029fdf54#0003" },
+    { action: "upsert", key: "P", id: "69da58292212ca00029fdf54#0003" },
+    { action: "upsert", key: "P", id: "69da58292212ca00029fdf54#0004" },
+    { action: "upsert", key: "L", id: "69da58292212ca00029fdf54#0004" }
+  ]);
+  assert.equal(actions.some(({ action }) => action === "delete"), false);
 });
 
 test("isPublished treats explicit unpublish state as delete even when Webiny keeps publish timestamps", () => {

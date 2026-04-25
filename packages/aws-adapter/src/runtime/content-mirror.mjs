@@ -392,6 +392,29 @@ export function matchesConfiguredTenant(item, configuredTenant) {
   return tenant != null && String(tenant) === String(configuredTenant);
 }
 
+export function shouldMirrorWebinyStreamItem(item) {
+  const type = String(item?.TYPE ?? "").trim();
+  const key = String(item?.SK ?? "").trim();
+
+  if (!type && !key) {
+    return true;
+  }
+
+  if (type === "cms.entry.p" || key === "P") {
+    return true;
+  }
+
+  if (type === "cms.entry.l" || key === "L") {
+    return isPublished(item);
+  }
+
+  if (type === "cms.entry" || key.startsWith("REV#")) {
+    return false;
+  }
+
+  return true;
+}
+
 async function loadModelFields(clients, sourceTableName, tenant, modelId, cache) {
   if (!sourceTableName || !tenant || !modelId) {
     return [];
@@ -479,6 +502,10 @@ export async function handler(event) {
     }
 
     const item = clients.AWS.DynamoDB.Converter.unmarshall(image);
+    if (!shouldMirrorWebinyStreamItem(item)) {
+      continue;
+    }
+
     if (!matchesConfiguredTenant(item, configuredTenant)) {
       continue;
     }

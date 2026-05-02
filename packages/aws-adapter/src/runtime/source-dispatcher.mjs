@@ -14,7 +14,7 @@ function variantFromBucket(environmentManifest, bucketName) {
   ));
 }
 
-function outputKeyFromAssetKey(variantName, key) {
+export function outputKeyFromAssetKey(variantName, key) {
   if (key.startsWith(`${variantName}/`)) {
     return key.slice(variantName.length + 1);
   }

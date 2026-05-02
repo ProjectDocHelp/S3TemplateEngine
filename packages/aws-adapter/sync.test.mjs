@@ -140,6 +140,45 @@ test("stageProjectSources keeps variant source and part folders separate", async
   );
 });
 
+test("stageProjectSources stages non-renderable assets from the variant sourceDir", async (context) => {
+  const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "s3te-sync-"));
+  context.after(async () => {
+    await fs.rm(projectDir, { recursive: true, force: true });
+  });
+
+  await fs.mkdir(path.join(projectDir, "app", "part-app"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "part"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "website"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "app", ".well-known"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "app", "gfx"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "app", "sahred"), { recursive: true });
+  await fs.mkdir(path.join(projectDir, "app", "app", "empty"), { recursive: true });
+  await fs.writeFile(path.join(projectDir, "app", "part-app", "shell.part"), "<title>App</title>\n");
+  await fs.writeFile(path.join(projectDir, "app", "app", ".well-known", "assetlinks.json"), "{}\n");
+  await fs.writeFile(path.join(projectDir, "app", "app", "gfx", "logo.svg"), "<svg></svg>\n");
+  await fs.writeFile(path.join(projectDir, "app", "app", "android-chrome-512x512.png"), "png\n");
+  await fs.writeFile(path.join(projectDir, "app", "app", "sahred", "common.js"), "export const shared = true;\n");
+  await fs.writeFile(path.join(projectDir, "app", "app", "site.webmanifest"), "{\"name\":\"App\"}\n");
+  await fs.writeFile(path.join(projectDir, "app", "app", "index.html"), "<h1>App</h1>\n");
+
+  const prepared = await stageProjectSources({
+    projectDir,
+    config: createResolvedMultiVariantConfig(),
+    environment: "test"
+  });
+
+  const stagedAppRoot = path.join(projectDir, prepared.syncDirectories.app, "app");
+  assert.equal(await fs.readFile(path.join(stagedAppRoot, ".well-known", "assetlinks.json"), "utf8"), "{}\n");
+  assert.equal(await fs.readFile(path.join(stagedAppRoot, "gfx", "logo.svg"), "utf8"), "<svg></svg>\n");
+  assert.equal(await fs.readFile(path.join(stagedAppRoot, "android-chrome-512x512.png"), "utf8"), "png\n");
+  assert.equal(await fs.readFile(path.join(stagedAppRoot, "sahred", "common.js"), "utf8"), "export const shared = true;\n");
+  assert.equal(await fs.readFile(path.join(stagedAppRoot, "site.webmanifest"), "utf8"), "{\"name\":\"App\"}\n");
+  await assert.rejects(
+    fs.stat(path.join(stagedAppRoot, "empty")),
+    { code: "ENOENT" }
+  );
+});
+
 test("syncPreparedSources uploads each variant with delete-aware sync", async () => {
   const calls = [];
 

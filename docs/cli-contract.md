@@ -175,7 +175,7 @@ Pflichtverhalten:
 1. validiert die Konfiguration vor dem Rendern
 2. rendert standardmaessig in `offline/S3TELocal/preview/<env>/<variant>/<lang>/`
 3. rendert ohne `--entry` alle renderbaren Dateien der Auswahl
-4. kopiert nicht renderbare Assets in den lokalen Output
+4. kopiert nicht renderbare Dateien aus `sourceDir` unveraendert in den lokalen Output, inklusive Dateien direkt im Varianten-Root und Dot-Verzeichnissen wie `.well-known/`
 5. loescht lokal veraltete generierte `dbmultifile`-Outputs innerhalb des Zielordners
 6. gibt bei `--stdout` nur den Artefakt-Body aus
 
@@ -303,7 +303,7 @@ Pflichtverhalten:
 
 1. laedt und validiert die Projektkonfiguration
 2. bereitet die zu synchronisierenden Quellen im S3TE-Code-Bucket-Layout vor
-3. synchronisiert `sourceDir` und `partDir` jeder Variante in den jeweiligen Code-Bucket
+3. synchronisiert `sourceDir` und `partDir` jeder Variante in den jeweiligen Code-Bucket; `sourceDir` wird unter `<variant>/` gestaged und `partDir` unter `part/`
 4. verwendet `aws s3 sync --delete`, damit geloeschte Quellen auch als Remove-Events ankommen
 
 JSON-Report:

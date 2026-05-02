@@ -313,7 +313,9 @@ Pflichtverhalten:
 1. Bucket auf Variante abbilden
 2. Dateiendung gegen `renderExtensions` pruefen
 3. fuer renderbare Dateien `render-worker` asynchron aufrufen
-4. fuer nicht renderbare Dateien direkte S3 Copy/Delete-Operationen in allen Ziel-Buckets der Variante ausfuehren
+4. fuer nicht renderbare Dateien unter `<variant>/` direkte S3 Copy/Delete-Operationen in allen Ziel-Buckets der Variante ausfuehren
+5. beim direkten Kopieren das fuehrende `<variant>/` aus dem Ziel-Key entfernen, zum Beispiel `app/site.webmanifest` -> `site.webmanifest`
+6. `part/`-Objekte nie als Assets kopieren; sie triggern Render-Events fuer abhaengige Templates
 
 ### 2. Content-Events
 

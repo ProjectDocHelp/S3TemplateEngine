@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { S3TemplateRepository } from "./src/runtime/common.mjs";
+import { isRenderableBucketKey, S3TemplateRepository } from "./src/runtime/common.mjs";
+import { outputKeyFromAssetKey } from "./src/runtime/source-dispatcher.mjs";
 
 function createEnvironmentManifest() {
   return {
@@ -36,4 +37,21 @@ test("S3TemplateRepository resolves app partDir keys to the shared part/ prefix 
     bucket: "test-app-code",
     objectKey: "app/index.html"
   });
+});
+
+test("source dispatcher treats non-renderable sourceDir files as direct-copy assets", () => {
+  const manifest = createEnvironmentManifest();
+  const renderExtensions = [".html", ".htm", ".part"];
+
+  assert.equal(isRenderableBucketKey(manifest, "app", "app/site.webmanifest", renderExtensions), false);
+  assert.equal(outputKeyFromAssetKey("app", "app/site.webmanifest"), "site.webmanifest");
+  assert.equal(outputKeyFromAssetKey("app", "app/.well-known/assetlinks.json"), ".well-known/assetlinks.json");
+  assert.equal(outputKeyFromAssetKey("app", "app/gfx/logo.svg"), "gfx/logo.svg");
+  assert.equal(outputKeyFromAssetKey("app", "app/android-chrome-512x512.png"), "android-chrome-512x512.png");
+  assert.equal(outputKeyFromAssetKey("app", "app/sahred/common.js"), "sahred/common.js");
+
+  assert.equal(isRenderableBucketKey(manifest, "app", "app/index.html", renderExtensions), true);
+  assert.equal(isRenderableBucketKey(manifest, "app", "app/page.htm", renderExtensions), true);
+  assert.equal(isRenderableBucketKey(manifest, "app", "app/template.part", renderExtensions), true);
+  assert.equal(isRenderableBucketKey(manifest, "app", "part/shell.part", renderExtensions), true);
 });

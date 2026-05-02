@@ -251,6 +251,14 @@ Defaults:
 - `routing.indexDocument`: `index.html`
 - `routing.notFoundDocument`: `404.html`
 
+Verhalten aus Sicht eines Projekts:
+
+- `sourceDir` ist die oeffentliche Quellwurzel der Variante.
+- Dateien unter `sourceDir`, deren Endung in `rendering.renderExtensions` steht, werden gerendert.
+- Alle anderen Dateien unter `sourceDir` werden unveraendert als Assets veroeffentlicht. Das gilt auch fuer Dateien direkt im `sourceDir`-Root und fuer Dot-Verzeichnisse wie `.well-known/`.
+- `partDir` wird nur fuer `<part>`-Includes verwendet und nicht als oeffentlicher Asset-Baum veroeffentlicht.
+- Leere Verzeichnisse werden nicht veroeffentlicht, weil S3 keine echten leeren Ordner speichert.
+
 ### `aws`
 
 Optionaler Block mit AWS-Adapter-Details. Fehlt der Block, muessen alle hier genannten Defaults angewendet werden.

@@ -48,6 +48,8 @@ Root
 - `partDir`: `app/part`
 - `routing.indexDocument`: `index.html`
 - `routing.notFoundDocument`: `404.html`
+- `sourceDir` ist die oeffentliche Quellwurzel der Variante: renderbare Dateien werden gerendert, alle anderen Dateien werden unveraendert als Assets veroeffentlicht
+- `partDir` liefert nur `<part>`-Includes und wird nicht als oeffentlicher Asset-Baum veroeffentlicht
 - `languages.<lang>.webinyLocale`: Sprach-Key selbst, zum Beispiel `en`
 - `languages.<lang>.baseUrl` und `cloudFrontAliases` muessen Hostnamen ohne Protokoll oder Pfad sein
 - wenn ein Environment `prod` existiert, werden nicht-produktive Hostnamen implizit umgeschrieben:

@@ -51,7 +51,7 @@ S3TE keeps one simple promise: you write source templates, S3TE turns them into 
 <details>
   <summary>What is the difference between the code bucket and the website bucket?</summary>
 
-The code bucket receives your source project files: `.html`, `.part`, CSS, JavaScript, images and everything else you deploy from your project.
+The code bucket receives your variant source files from `sourceDir`: `.html`, `.part`, CSS, JavaScript, images, manifests and everything else you publish for that variant. Files from `partDir` are uploaded too, but they are treated as reusable template fragments, not as public website assets.
 
 The website bucket contains the finished result that visitors actually receive through CloudFront. That split is what makes incremental rendering, generated pages and safe re-deploys possible.
 
@@ -338,6 +338,9 @@ What gets uploaded where:
 
 - For each variant, S3TE stages `partDir` into `part/` and `sourceDir` into `<variant>/`.
 - Then S3TE syncs that staged tree into the resolved code bucket for that variant and environment.
+- In the deployed runtime, files below `<variant>/` whose extension is in `rendering.renderExtensions` are rendered. By default that means `.html`, `.htm` and `.part`.
+- Every other file below `<variant>/` is copied unchanged into the public output bucket, with the `<variant>/` prefix removed. Dot-folders such as `.well-known/`, image folders such as `gfx/`, files like `site.webmanifest`, and root-level icons inside `sourceDir` are valid assets.
+- Empty folders are not published, because S3 stores objects, not real directories.
 
 With your example config this means:
 
@@ -345,6 +348,13 @@ With your example config this means:
 - `test` + `app`: `app/part-app` and `app/app` go to `test-app-code-sop`
 - `prod` + `website`: `app/part` and `app/website` go to `website-code-sop`
 - `prod` + `app`: `app/part-app` and `app/app` go to `app-code-sop`
+
+For the `prod` + `app` case, these source files publish like this:
+
+- `app/app/index.html` is rendered from `app-code-sop:app/index.html` to `app-sop:index.html`
+- `app/app/site.webmanifest` is copied from `app-code-sop:app/site.webmanifest` to `app-sop:site.webmanifest`
+- `app/app/.well-known/assetlinks.json` is copied to `app-sop:.well-known/assetlinks.json`
+- `app/app/gfx/logo.svg` is copied to `app-sop:gfx/logo.svg`
 
 Minimal IAM policy example for the `test` environment and both variants:
 
